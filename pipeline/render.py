@@ -41,6 +41,7 @@ LAYER_META = {
     "temperature_850":       ("Température à 850 hPa (~1 500 m)", "°C", 1, "Pression et géopotentiel"),
     "pluie_1h":              ("Précipitations sur 3 h",        "mm",   1, "Précipitations"),
     "pluie_cumul":           ("Précipitations cumulées",       "mm",   1, "Précipitations"),
+    "pluie_24h":             ("Précipitations sur 24 h",       "mm",   1, "Précipitations"),
     "neige_au_sol":          ("Épaisseur de neige au sol",     "cm",   1, "Autres"),
     "vagues":                ("Hauteur des vagues & Vents",    "m",    1, "Mer & Vagues"),
     "periode_vagues":        ("Période des vagues & Direction", "s",   1, "Mer & Vagues"),
@@ -53,7 +54,7 @@ LAYER_ORDER = [
     "vent", "rafales", "rafales_cumul", "vagues", "periode_vagues",
     "nebulosite", "nuages_bas", "nuages_moyens", "nuages_eleves",
     "humidite", "mucape",
-    "pluie_1h", "pluie_cumul", "neige_au_sol",
+    "pluie_1h", "pluie_cumul", "pluie_24h", "neige_au_sol",
 ]
 
 

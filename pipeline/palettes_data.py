@@ -587,5 +587,6 @@ PALETTES = {
 PALETTES["houle"] = PALETTES["vagues"]
 PALETTES["periode"] = PALETTES["periode_vagues"]
 PALETTES["temperature_850"] = PALETTES["temperature"]
+PALETTES["pluie_24h"] = PALETTES["pluie_cumul"]
 
 

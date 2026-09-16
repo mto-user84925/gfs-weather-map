@@ -724,6 +724,10 @@
         label: 'Température maximale Tx (24h)', unit: '°C', decimals: 1, transparent_below: null,
         stops: PALETTES.temperature.stops
     };
+    PALETTES.pluie_24h = {
+        label: 'Précipitations sur 24h', unit: 'mm', decimals: 0, transparent_below: 0,
+        stops: PALETTES.pluie_cumul.stops
+    };
     PALETTES.geopotentiel_500_meteociel = PALETTES.geopotentiel_500;
 
     // Calques de Probabilités 24h
