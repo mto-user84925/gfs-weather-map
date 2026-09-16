@@ -2106,15 +2106,17 @@
                             // To perfectly match the image, we draw all strokes first with shadow, 
                             // then all fills without shadow so they don't overlap awkwardly.
                             
-                            compCtx.font = '900 110px "Arial Black", Arial, sans-serif';
-                            compCtx.lineWidth = 20;
+                            // Calibré au pixel près sur la carte de référence (1080×1920) :
+                            // hauteur totale badge ~94px, bordure blanche 8px, ombre décalée
+                            compCtx.font = '900 125px "Arial Black", Arial, sans-serif';
+                            compCtx.lineWidth = 22;
                             compCtx.strokeStyle = '#ffffff';
                             
                             // Draw strokes with shadow
                             compCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                            compCtx.shadowBlur = 6;
-                            compCtx.shadowOffsetX = 6;
-                            compCtx.shadowOffsetY = 6;
+                            compCtx.shadowBlur = 8;
+                            compCtx.shadowOffsetX = 7;
+                            compCtx.shadowOffsetY = 7;
                             
                             for (var i = 0; i < valsData.length; i++) {
                                 compCtx.strokeText(valsData[i].text, valsData[i].cx, valsData[i].cy);
