@@ -2922,6 +2922,27 @@
             });
         }
 
+        function syncDirectLayerSelect() {
+            var dSel = document.getElementById('direct-layer-select');
+            if (!dSel || !manifest || !manifest.layers) return;
+            var opts = dSel.querySelectorAll('option');
+            for (var oi = 0; oi < opts.length; oi++) {
+                var val = opts[oi].value;
+                var available = !!manifest.layers[val];
+                opts[oi].hidden = !available;
+                opts[oi].style.display = available ? '' : 'none';
+            }
+            var grps = dSel.querySelectorAll('optgroup');
+            for (var gi = 0; gi < grps.length; gi++) {
+                var visibleOpts = grps[gi].querySelectorAll('option:not([hidden])');
+                grps[gi].hidden = (visibleOpts.length === 0);
+                grps[gi].style.display = (visibleOpts.length === 0) ? 'none' : '';
+            }
+            if (dSel.value && !manifest.layers[dSel.value]) {
+                dSel.value = currentLayer;
+            }
+        }
+
         var switchToken = 0; // ponytail: guard anti-double-switch — pas de AbortController pour IE11
         var pendingStepLead = null;
 
@@ -3033,27 +3054,10 @@
                     }
                     var isFranceOnly = (modelKey.indexOf('_france') !== -1);
                     var isArpegeEu = (modelKey === 'arpege');
-                    var dSel = document.getElementById('direct-layer-select');
-                    if (dSel) {
-                        var z500Opt = dSel.querySelector('option[value="geopotentiel_500"]');
-                        if (z500Opt) z500Opt.disabled = !(manifest.layers && manifest.layers['geopotentiel_500']);
-                        var t850Opt = dSel.querySelector('option[value="temperature_850"]');
-                        if (t850Opt) t850Opt.disabled = !(manifest.layers && manifest.layers['temperature_850']);
-
-                        // Pour ARPEGE Europe : masquer tout le groupe températures sol (garder seulement T850 en altitude)
-                        var tempGroup = dSel.querySelector('optgroup[label*="Températures"]');
-                        if (tempGroup) {
-                            tempGroup.hidden = isArpegeEu;
-                            tempGroup.style.display = isArpegeEu ? 'none' : '';
-                        }
-                        // 24h min/max : uniquement sur les modèles France
-                        var tnOpt = dSel.querySelector('option[value="temperature_min_24h"]');
-                        if (tnOpt) { tnOpt.hidden = !isFranceOnly; tnOpt.style.display = isFranceOnly ? '' : 'none'; }
-                        var txOpt = dSel.querySelector('option[value="temperature_max_24h"]');
-                        if (txOpt) { txOpt.hidden = !isFranceOnly; txOpt.style.display = isFranceOnly ? '' : 'none'; }
-                    }
+                    syncDirectLayerSelect();
                     if (isArpegeEu && (currentLayer === 'temperature' || currentLayer === 'temperature_ressentie' || currentLayer === 'point_rosee' || currentLayer === 'humidex' || currentLayer === 'temperature_min_24h' || currentLayer === 'temperature_max_24h')) {
                         currentLayer = 'geopotentiel_500';
+                        var dSel = document.getElementById('direct-layer-select');
                         if (dSel) dSel.value = 'geopotentiel_500';
                     }
                     var regSel = document.getElementById('select-region');
@@ -5667,20 +5671,7 @@
                     setLayerMenuOpen(!window.matchMedia ||
                         !window.matchMedia('(max-width: 760px)').matches);
                 }
-                var dSel = document.getElementById('direct-layer-select');
-                if (dSel) {
-                    var isFranceOnlyInit = (currentModel.indexOf('_france') !== -1);
-                    var isArpegeEuInit = (currentModel === 'arpege');
-                    var tempGroup = dSel.querySelector('optgroup[label*="Températures"]');
-                    if (tempGroup) {
-                        tempGroup.hidden = isArpegeEuInit;
-                        tempGroup.style.display = isArpegeEuInit ? 'none' : '';
-                    }
-                    var tnOpt = dSel.querySelector('option[value="temperature_min_24h"]');
-                    if (tnOpt) { tnOpt.hidden = !isFranceOnlyInit; tnOpt.style.display = isFranceOnlyInit ? '' : 'none'; }
-                    var txOpt = dSel.querySelector('option[value="temperature_max_24h"]');
-                    if (txOpt) { txOpt.hidden = !isFranceOnlyInit; txOpt.style.display = isFranceOnlyInit ? '' : 'none'; }
-                }
+                syncDirectLayerSelect();
                 var regSel = document.getElementById('select-region');
                 if (regSel) {
                     var isFr = (currentModel.indexOf('_france') !== -1);
