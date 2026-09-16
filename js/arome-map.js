@@ -165,6 +165,7 @@
         var captureJpegButton = app.querySelector('[data-amfm-capture-jpeg]');
         var captureGifButton = app.querySelector('[data-amfm-capture-gif]');
         var captureGifScreenButton = app.querySelector('[data-amfm-capture-gif-screen]');
+        var captureTiktokButton = app.querySelector('[data-amfm-capture-tiktok]');
         var toggleCitiesButton = app.querySelector('[data-amfm-toggle-cities]');
         var toggleValuesButton = app.querySelector('[data-amfm-toggle-values]');
         var toggleCyclonesButton = app.querySelector('[data-amfm-toggle-cyclones]');
@@ -1813,6 +1814,262 @@
                 });
             }
             next();
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // EXPORT PACK TIKTOK 12 CARTES (J0 à J11, 1080×1920, Fond transparent)
+        // ────────────────────────────────────────────────────────────────────
+        var tiktokAssets = null;
+        function loadTiktokAssets() {
+            if (tiktokAssets && tiktokAssets.mask.complete && tiktokAssets.white.complete && tiktokAssets.borders.complete) {
+                return Promise.resolve(tiktokAssets);
+            }
+            function loadImg(src) {
+                return new Promise(function(resolve) {
+                    var img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = function() { resolve(img); };
+                    img.onerror = function(e) { console.error('Erreur chargement ' + src, e); resolve(null); };
+                    img.src = versioned(src);
+                });
+            }
+            return Promise.all([
+                loadImg('config/mask_france_exact.png'),
+                loadImg('config/white_france_tiktok.png'),
+                loadImg('config/borders_france_tiktok.png')
+            ]).then(function(results) {
+                if (!results[0] || !results[1] || !results[2]) return null;
+                tiktokAssets = {
+                    mask: results[0],
+                    white: results[1],
+                    borders: results[2]
+                };
+                return tiktokAssets;
+            });
+        }
+
+        function getTiktok12Steps(layerKey) {
+            var all = availableSteps();
+            if (!all || !all.length) return [];
+
+            // Si toutes les étapes pour ce layer sont déjà espacées d'environ 24h
+            // (ex: temperature_max_24h, temperature_min_24h où il y a ~17 étapes au total)
+            if (all.length <= 18) {
+                return all.slice(0, 12);
+            }
+
+            // Sinon (ex: pluie_cumul, temperature, vent avec pas de 3h ou 6h) :
+            // Regroupons les étapes par jour civil (valid_time ou lead_hour / 24)
+            var daysMap = {};
+            var dayKeys = [];
+            all.forEach(function(s) {
+                var dateStr = (s.valid_time || '').slice(0, 10);
+                if (!dateStr) {
+                    dateStr = 'day_' + Math.floor(s.lead_hour / 24);
+                }
+                if (!daysMap[dateStr]) {
+                    daysMap[dateStr] = [];
+                    dayKeys.push(dateStr);
+                }
+                daysMap[dateStr].push(s);
+            });
+
+            var selected = [];
+            dayKeys.slice(0, 12).forEach(function(dKey) {
+                var daySteps = daysMap[dKey];
+                if (!daySteps || !daySteps.length) return;
+
+                var chosen = daySteps[0];
+                if (layerKey && layerKey.indexOf('cumul') !== -1) {
+                    // Pour les cumuls de pluie sur 24h, prendre l'échéance terminale du jour
+                    chosen = daySteps[daySteps.length - 1];
+                } else {
+                    // Pour les autres paramètres (températures instantanées, vent, rafales),
+                    // choisir l'heure la plus proche de 14h UTC
+                    var bestDiff = 999;
+                    daySteps.forEach(function(s) {
+                        var h = 12;
+                        if (s.valid_time) {
+                            var d = new Date(s.valid_time);
+                            h = d.getUTCHours();
+                        } else {
+                            h = s.lead_hour % 24;
+                        }
+                        var diff = Math.abs(h - 14);
+                        if (diff < bestDiff) {
+                            bestDiff = diff;
+                            chosen = s;
+                        }
+                    });
+                }
+                selected.push(chosen);
+            });
+
+            return selected.length >= 5 ? selected.slice(0, 12) : all.slice(0, 12);
+        }
+
+        var isTiktokGenerating = false;
+        function downloadTiktokPack() {
+            if (isTiktokGenerating) return;
+            if (typeof window.JSZip !== 'function') {
+                setToolHint('Module de compression ZIP en cours de chargement…');
+                return;
+            }
+
+            var steps = getTiktok12Steps(currentLayer);
+            if (!steps || !steps.length) {
+                setToolHint('Aucune échéance disponible pour le pack TikTok.');
+                return;
+            }
+
+            isTiktokGenerating = true;
+            var origBtnHtml = captureTiktokButton ? captureTiktokButton.innerHTML : '';
+            if (captureTiktokButton) {
+                captureTiktokButton.classList.add('is-loading');
+                captureTiktokButton.disabled = true;
+                captureTiktokButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>0/' + steps.length + '</span>';
+            }
+
+            function resetBtn() {
+                isTiktokGenerating = false;
+                if (captureTiktokButton) {
+                    captureTiktokButton.classList.remove('is-loading');
+                    captureTiktokButton.disabled = false;
+                    captureTiktokButton.innerHTML = origBtnHtml;
+                }
+            }
+
+            loadTiktokAssets().then(function(assets) {
+                if (!assets) {
+                    setToolHint('Erreur : Ressources cartographiques TikTok introuvables.');
+                    resetBtn();
+                    return;
+                }
+
+                var zip = new window.JSZip();
+                var index = 0;
+
+                function processNext() {
+                    if (index >= steps.length) {
+                        if (captureTiktokButton) {
+                            captureTiktokButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>ZIP…</span>';
+                        }
+                        var layerSlug = (manifest && manifest.layers && manifest.layers[currentLayer] ? manifest.layers[currentLayer].label : currentLayer)
+                            .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                        var zipName = 'pack-tiktok-' + (layerSlug || 'meteo') + '-12j.zip';
+                        zip.generateAsync({ type: 'blob' }).then(function(blob) {
+                            var url = URL.createObjectURL(blob);
+                            var link = document.createElement('a');
+                            link.href = url;
+                            link.download = zipName;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+                            resetBtn();
+                            setToolHint('Pack TikTok 12 cartes téléchargé avec succès !');
+                        }).catch(function(err) {
+                            console.error('Erreur génération ZIP:', err);
+                            resetBtn();
+                        });
+                        return;
+                    }
+
+                    var step = steps[index];
+                    var stepNum = index + 1;
+                    if (captureTiktokButton) {
+                        captureTiktokButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>' + stepNum + '/' + steps.length + '</span>';
+                    }
+
+                    var fileUrl = step.files && step.files[currentLayer];
+                    if (!fileUrl) {
+                        index += 1;
+                        processNext();
+                        return;
+                    }
+
+                    var img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = function() {
+                        // 1. Offscreen canvas 2200 × 1640 pour le calque météo masqué
+                        var rawCanvas = document.createElement('canvas');
+                        rawCanvas.width = 2200;
+                        rawCanvas.height = 1640;
+                        var rawCtx = rawCanvas.getContext('2d');
+
+                        // Dessin du calque météo
+                        rawCtx.drawImage(img, 0, 0, 2200, 1640);
+
+                        // Masquage strict terre France + Corse (mer et étranger transparents)
+                        rawCtx.globalCompositeOperation = 'destination-in';
+                        rawCtx.drawImage(assets.mask, 0, 0, 2200, 1640);
+                        rawCtx.globalCompositeOperation = 'source-over';
+
+                        // Découpage et décalage de la Corse : dx = -150, dy = 0
+                        var csx = 1685, csy = 1215, csw = 135, csh = 230;
+                        var corseCanvas = document.createElement('canvas');
+                        corseCanvas.width = csw;
+                        corseCanvas.height = csh;
+                        corseCanvas.getContext('2d').drawImage(rawCanvas, csx, csy, csw, csh, 0, 0, csw, csh);
+                        rawCtx.clearRect(csx, csy, csw, csh);
+                        rawCtx.drawImage(corseCanvas, csx - 150, csy);
+
+                        // 2. Canevas d'assemblage 2200 × 1640
+                        var composeCanvas = document.createElement('canvas');
+                        composeCanvas.width = 2200;
+                        composeCanvas.height = 1640;
+                        var compCtx = composeCanvas.getContext('2d');
+
+                        // Fond blanc sous la France pour éviter les zones noires si 0 mm de pluie / donnée absente
+                        compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
+
+                        // Dessin du calque météo par-dessus le fond blanc
+                        compCtx.drawImage(rawCanvas, 0, 0, 2200, 1640);
+
+                        // Frontières départementales vectorielles nettes
+                        compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
+
+                        // 3. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
+                        var ttCanvas = document.createElement('canvas');
+                        ttCanvas.width = 1080;
+                        ttCanvas.height = 1920;
+                        var ttCtx = ttCanvas.getContext('2d');
+                        ttCtx.clearRect(0, 0, 1080, 1920);
+
+                        var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
+                        var targetW = 1040;
+                        var targetH = Math.round(targetW * (cropH / cropW));
+                        var targetX = Math.round((1080 - targetW) / 2);
+                        var targetY = Math.round((1920 - targetH) / 2);
+
+                        ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+
+                        var dateStr = '';
+                        if (step.valid_time) {
+                            dateStr = step.valid_time.slice(0, 10);
+                        }
+                        var numPrefix = (index + 1 < 10 ? '0' + (index + 1) : '' + (index + 1));
+                        var leadTag = 'J+' + index;
+                        var fileName = numPrefix + '_carte-meteo-' + (currentLayer || 'param') + '-' + leadTag + (dateStr ? '_' + dateStr : '') + '.png';
+
+                        ttCanvas.toBlob(function(blob) {
+                            if (blob) {
+                                zip.file(fileName, blob);
+                            }
+                            index += 1;
+                            processNext();
+                        }, 'image/png');
+                    };
+                    img.onerror = function() {
+                        console.warn('Erreur chargement étape TikTok:', step);
+                        index += 1;
+                        processNext();
+                    };
+                    img.src = versioned(fileUrl);
+                }
+
+                processNext();
+            });
         }
 
         function closeDiagram() {
@@ -4668,6 +4925,9 @@
         }
         if (captureGifScreenButton) {
             captureGifScreenButton.addEventListener('click', function () { openGifModal('screen'); });
+        }
+        if (captureTiktokButton) {
+            captureTiktokButton.addEventListener('click', function () { downloadTiktokPack(); });
         }
         if (toggleCitiesButton) {
             toggleCitiesButton.addEventListener('click', function () {
