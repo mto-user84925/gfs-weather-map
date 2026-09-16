@@ -2047,14 +2047,24 @@
                             var layerPal = window.getLayerPalette(currentLayer);
                             
                             var tvCities = [
-                                "Lille", "Amiens", "Rouen", "Cherbourg-en-Cotentin", "Brest", "Rennes", "Paris", 
-                                "Reims", "Metz", "Strasbourg", "Nantes", "Tours", "Bourges", "Dijon", "Besançon",
-                                "Poitiers", "La Rochelle", "Limoges", "Clermont-Ferrand", "Lyon", "Grenoble", 
-                                "Bordeaux", "Biarritz", "Pau", "Toulouse", "Aurillac", "Perpignan", "Montpellier", 
-                                "Marseille", "Nice", "Ajaccio"
+                                "Paris", "Lille", "Brest", "Strasbourg", "Lyon", "Bordeaux",
+                                "Marseille", "Nice", "Toulouse", "Nantes", "Rennes", "Clermont-Ferrand",
+                                "Dijon", "Montpellier", "Perpignan", "Biarritz", "Limoges", "Tours",
+                                "Reims", "Ajaccio", "Cherbourg-en-Cotentin", "Caen", "Amiens",
+                                "Bourges", "Poitiers", "La Rochelle", "Aurillac", "Metz", "Bastia",
+                                "Rouen", "Besançon", "Pau", "Grenoble"
                             ];
                             
-                            var targetPlaces = places.filter(function(p) { return tvCities.indexOf(p[0]) !== -1; });
+                            var targetPlaces = [];
+                            for (var tvi = 0; tvi < tvCities.length; tvi++) {
+                                var cName = tvCities[tvi];
+                                for (var pi = 0; pi < places.length; pi++) {
+                                    if (places[pi][0] === cName) {
+                                        targetPlaces.push(places[pi]);
+                                        break;
+                                    }
+                                }
+                            }
                             var isTemp = currentLayer.indexOf('temperature') !== -1;
                             
                             compCtx.textAlign = 'center';
@@ -2062,6 +2072,13 @@
                             compCtx.lineJoin = 'round';
                             
                             var valsData = [];
+                            var placedBoxes = [];
+                            
+                            var shifts = [
+                                { dx: 0, dy: 0 },
+                                { dx: 0, dy: -20 }, { dx: 0, dy: 20 }, { dx: -22, dy: 0 }, { dx: 22, dy: 0 },
+                                { dx: -20, dy: -20 }, { dx: 20, dy: -20 }, { dx: -20, dy: 20 }, { dx: 20, dy: 20 }
+                            ];
                             
                             for (var pi = 0; pi < targetPlaces.length; pi++) {
                                 var place = targetPlaces[pi];
@@ -2092,7 +2109,42 @@
                                     if (val < 0.1) continue;
                                 }
                                 
-                                valsData.push({ text: strVal, val: Math.round(val), cx: cx, cy: cy });
+                                // Anti-chevauchement strict : encombrement d'un badge ~145x92 px
+                                var bw = (strVal.length >= 3 ? 175 : 145);
+                                var bh = 92;
+                                
+                                var bestPos = null;
+                                for (var si = 0; si < shifts.length; si++) {
+                                    var nx = cx + shifts[si].dx;
+                                    var ny = cy + shifts[si].dy;
+                                    var rect = {
+                                        left: nx - bw / 2,
+                                        right: nx + bw / 2,
+                                        top: ny - bh / 2,
+                                        bottom: ny + bh / 2
+                                    };
+                                    
+                                    var collides = false;
+                                    for (var bi = 0; bi < placedBoxes.length; bi++) {
+                                        var pb = placedBoxes[bi];
+                                        if (rect.left < pb.right && rect.right > pb.left &&
+                                            rect.top < pb.bottom && rect.bottom > pb.top) {
+                                            collides = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!collides) {
+                                        bestPos = { x: nx, y: ny, rect: rect };
+                                        break;
+                                    }
+                                }
+                                
+                                if (!bestPos) {
+                                    continue; // Empêche tout chevauchement
+                                }
+                                
+                                placedBoxes.push(bestPos.rect);
+                                valsData.push({ text: strVal, val: Math.round(val), cx: bestPos.x, cy: bestPos.y });
                             }
                             
                             var minVal = Infinity, maxVal = -Infinity;
