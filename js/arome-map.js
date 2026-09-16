@@ -1848,14 +1848,14 @@
             });
         }
 
-        function getTiktok12Steps(layerKey) {
+        function getTiktokSteps(layerKey) {
             var all = availableSteps();
             if (!all || !all.length) return [];
 
             // Si toutes les étapes pour ce layer sont déjà espacées d'environ 24h
-            // (ex: temperature_max_24h, temperature_min_24h où il y a ~17 étapes au total)
-            if (all.length <= 18) {
-                return all.slice(0, 12);
+            // (ex: temperature_max_24h, temperature_min_24h où il y a ~17 étapes au total : J0 à J16)
+            if (all.length <= 20) {
+                return all.slice(0, 16);
             }
 
             // Sinon (ex: pluie_cumul, temperature, vent avec pas de 3h ou 6h) :
@@ -1875,7 +1875,7 @@
             });
 
             var selected = [];
-            dayKeys.slice(0, 12).forEach(function(dKey) {
+            dayKeys.slice(0, 16).forEach(function(dKey) {
                 var daySteps = daysMap[dKey];
                 if (!daySteps || !daySteps.length) return;
 
@@ -1905,7 +1905,7 @@
                 selected.push(chosen);
             });
 
-            return selected.length >= 5 ? selected.slice(0, 12) : all.slice(0, 12);
+            return selected.length >= 5 ? selected.slice(0, 16) : all.slice(0, 16);
         }
 
         var isTiktokGenerating = false;
@@ -1916,7 +1916,7 @@
                 return;
             }
 
-            var steps = getTiktok12Steps(currentLayer);
+            var steps = getTiktokSteps(currentLayer);
             if (!steps || !steps.length) {
                 setToolHint('Aucune échéance disponible pour le pack TikTok.');
                 return;
@@ -1956,7 +1956,7 @@
                         }
                         var layerSlug = (manifest && manifest.layers && manifest.layers[currentLayer] ? manifest.layers[currentLayer].label : currentLayer)
                             .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                        var zipName = 'pack-tiktok-' + (layerSlug || 'meteo') + '-12j.zip';
+                        var zipName = 'pack-tiktok-' + (layerSlug || 'meteo') + '-16j.zip';
                         zip.generateAsync({ type: 'blob' }).then(function(blob) {
                             var url = URL.createObjectURL(blob);
                             var link = document.createElement('a');
@@ -1967,7 +1967,7 @@
                             document.body.removeChild(link);
                             setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
                             resetBtn();
-                            setToolHint('Pack TikTok 12 cartes téléchargé avec succès !');
+                            setToolHint('Pack TikTok 16 cartes (J0 à J15) téléchargé avec succès !');
                         }).catch(function(err) {
                             console.error('Erreur génération ZIP:', err);
                             resetBtn();
