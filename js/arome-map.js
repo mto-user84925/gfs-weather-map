@@ -2111,10 +2111,10 @@
                             compCtx.strokeStyle = '#ffffff';
                             
                             // Draw strokes with shadow
-                            compCtx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-                            compCtx.shadowBlur = 10;
-                            compCtx.shadowOffsetX = 4;
-                            compCtx.shadowOffsetY = 4;
+                            compCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                            compCtx.shadowBlur = 6;
+                            compCtx.shadowOffsetX = 6;
+                            compCtx.shadowOffsetY = 6;
                             
                             for (var i = 0; i < valsData.length; i++) {
                                 compCtx.strokeText(valsData[i].text, valsData[i].cx, valsData[i].cy);
