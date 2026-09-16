@@ -588,5 +588,8 @@ PALETTES["houle"] = PALETTES["vagues"]
 PALETTES["periode"] = PALETTES["periode_vagues"]
 PALETTES["temperature_850"] = PALETTES["temperature"]
 PALETTES["pluie_24h"] = PALETTES["pluie_cumul"]
+PALETTES["rafales_max_24h"] = PALETTES["rafales"]
+PALETTES["mucape_max_24h"] = PALETTES["mucape"]
+PALETTES["neige_24h"] = PALETTES["neige_au_sol"]
 
 

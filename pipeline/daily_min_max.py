@@ -165,6 +165,62 @@ def process_model_rain_24h(model_key):
         write_hkv(p_24h, hkv_24h, probe_w=440, probe_h=328)
 
 
+def process_model_max_24h(model_key, input_layer, output_layer):
+    out_dir = os.path.join(BASE_DIR, "output", model_key, "maps")
+    in_dir = os.path.join(out_dir, "values", input_layer)
+    if not os.path.isdir(in_dir):
+        return
+
+    in_files = {}
+    for f in glob.glob(os.path.join(in_dir, "*.hkv.gz")):
+        m = re.match(r"^(\d{3})\.hkv\.gz$", os.path.basename(f))
+        if m:
+            lead = int(m.group(1))
+            in_files[lead] = f
+
+    if not in_files:
+        return
+
+    sorted_leads = sorted(in_files.keys())
+    max_lead = sorted_leads[-1]
+    max_days = (max_lead // 24) + 1
+
+    print("[daily_min_max] Calcul %s pour %s (J+0 -> J+%d)..." % (output_layer, model_key, max_days - 1), flush=True)
+
+    for d in range(max_days):
+        start_h = d * 24
+        end_h = (d + 1) * 24
+
+        day_leads = [l for l in sorted_leads if start_h <= l <= end_h]
+        if not day_leads:
+            continue
+
+        day_grids = []
+        for l in day_leads:
+            g = read_hkv(in_files[l])
+            if g is not None:
+                if g.shape != (328, 440):
+                    im = Image.fromarray(g.astype(np.float32)).resize((440, 328), resample=Image.BILINEAR)
+                    g = np.array(im)
+                day_grids.append(g)
+
+        if not day_grids:
+            continue
+
+        stack = np.stack(day_grids, axis=0)
+        v_max = np.nanmax(stack, axis=0)
+
+        im_max = Image.fromarray(v_max.astype(np.float32)).resize((2200, 1640), resample=Image.BILINEAR)
+        grid_max_full = np.array(im_max)
+
+        lead_str = "%03d" % (d * 24)
+
+        webp_out = os.path.join(out_dir, output_layer, "%s.webp" % lead_str)
+        hkv_out = os.path.join(out_dir, "values", output_layer, "%s.hkv.gz" % lead_str)
+        save_webp(grid_max_full, output_layer, webp_out)
+        write_hkv(v_max, hkv_out, probe_w=440, probe_h=328)
+
+
 def main():
     models = [
         "arpege_france",
@@ -175,7 +231,12 @@ def main():
     with ThreadPoolExecutor(max_workers=4) as executor:
         executor.map(process_model_min_max, models)
         executor.map(process_model_rain_24h, models)
-    print("✅ [daily_min_max] Calcul Tn/Tx 24h terminé pour tous les modèles France.", flush=True)
+        def make_task(in_l, out_l):
+            return lambda m: process_model_max_24h(m, in_l, out_l)
+        
+        for input_layer, output_layer in [("rafales", "rafales_max_24h"), ("mucape", "mucape_max_24h"), ("neige_au_sol", "neige_24h")]:
+            executor.map(make_task(input_layer, output_layer), models)
+    print("✅ [daily_min_max] Calcul Tn/Tx et autres 24h terminé pour tous les modèles France.", flush=True)
 
 
 if __name__ == "__main__":

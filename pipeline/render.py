@@ -28,12 +28,14 @@ LAYER_META = {
     "vent":                  ("Vent moyen à 10 m",             "km/h", 0, "Vent"),
     "rafales":               ("Rafales maximales",             "km/h", 0, "Vent"),
     "rafales_cumul":         ("Rafales maximales cumulées",    "km/h", 0, "Vent"),
+    "rafales_max_24h":       ("Rafales maximales (24h)",       "km/h", 0, "Vent"),
     "nebulosite":            ("Nébulosité totale",             "%",    0, "Nuages et humidité"),
     "nuages_bas":            ("Couverture nuages bas",         "%",    0, "Nuages et humidité"),
     "nuages_moyens":         ("Couverture nuages moyens",      "%",    0, "Nuages et humidité"),
     "nuages_eleves":         ("Couverture nuages élevés",      "%",    0, "Nuages et humidité"),
     "humidite":              ("Humidité relative à 2 m",       "%",    0, "Nuages et humidité"),
     "mucape":                ("Instabilité orageuse (MUCAPE)", "J/kg", 0, "Instabilité"),
+    "mucape_max_24h":        ("Instabilité maximale (24h)",    "J/kg", 0, "Instabilité"),
     "pression":              ("Pression niveau mer",           "hPa",  0, "Pression et géopotentiel"),
     "pression_surface":      ("Pression au sol",               "hPa",  0, "Pression et géopotentiel"),
     "geopotentiel_500":      ("Géopotentiel 500 hPa",          "dam",  0, "Pression et géopotentiel"),
@@ -43,6 +45,7 @@ LAYER_META = {
     "pluie_cumul":           ("Précipitations cumulées",       "mm",   1, "Précipitations"),
     "pluie_24h":             ("Précipitations sur 24 h",       "mm",   1, "Précipitations"),
     "neige_au_sol":          ("Épaisseur de neige au sol",     "cm",   1, "Autres"),
+    "neige_24h":             ("Épaisseur maximale de neige (24h)", "cm", 1, "Autres"),
     "vagues":                ("Hauteur des vagues & Vents",    "m",    1, "Mer & Vagues"),
     "periode_vagues":        ("Période des vagues & Direction", "s",   1, "Mer & Vagues"),
 }
@@ -51,10 +54,10 @@ LAYER_META = {
 LAYER_ORDER = [
     "geopotentiel_500", "temperature_850", "pression", "pression_surface",
     "temperature", "temperature_min_24h", "temperature_max_24h", "temperature_ressentie", "point_rosee", "humidex",
-    "vent", "rafales", "rafales_cumul", "vagues", "periode_vagues",
+    "vent", "rafales", "rafales_cumul", "rafales_max_24h", "vagues", "periode_vagues",
     "nebulosite", "nuages_bas", "nuages_moyens", "nuages_eleves",
-    "humidite", "mucape",
-    "pluie_1h", "pluie_cumul", "pluie_24h", "neige_au_sol",
+    "humidite", "mucape", "mucape_max_24h",
+    "pluie_1h", "pluie_cumul", "pluie_24h", "neige_au_sol", "neige_24h",
 ]
 
 

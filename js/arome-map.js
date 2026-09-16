@@ -2036,7 +2036,86 @@
                         // Frontières départementales vectorielles nettes
                         compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
 
-                        // 3. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
+                        // 3. Incrustation des valeurs numériques des villes (optionnel)
+                        var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                        if (includeValues && places && places.length && window.getLayerPalette) {
+                            var samplerCtx = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
+                            samplerCtx.canvas.width = img.width;
+                            samplerCtx.canvas.height = img.height;
+                            samplerCtx.drawImage(img, 0, 0);
+                            var imgData = samplerCtx.getImageData(0, 0, img.width, img.height).data;
+                            var layerPal = window.getLayerPalette(currentLayer);
+                            
+                            var sortedPlaces = places.slice().sort(function(a, b) { return Number(b[1]) - Number(a[1]); });
+                            compCtx.textAlign = 'center';
+                            compCtx.textBaseline = 'middle';
+                            compCtx.lineJoin = 'round';
+                            var drawnBoxes = [];
+                            
+                            for (var pi = 0; pi < sortedPlaces.length; pi++) {
+                                var place = sortedPlaces[pi];
+                                var pop = Number(place[1]);
+                                if (pop < 25000) continue;
+                                
+                                var coords = projectCoords(Number(place[2]), Number(place[3]));
+                                var u = coords.u, v = coords.v;
+                                if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+                                
+                                var px = Math.round(u * (img.width - 1));
+                                var py = Math.round(v * (img.height - 1));
+                                var idx = (py * img.width + px) * 4;
+                                var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                                
+                                var val = null;
+                                if (a > 12) {
+                                    val = valueFromColour(r, g, b, layerPal);
+                                }
+                                if (val === null || !Number.isFinite(val)) continue;
+                                
+                                var cx = u * 2200;
+                                var cy = v * 1640;
+                                var isCorse = Number(place[3]) > 8.4 && Number(place[2]) < 43.1;
+                                if (isCorse) cx -= 150;
+                                
+                                var cityName = String(place[0]);
+                                var strVal = String(Math.round(val));
+                                if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
+                                    strVal = val < 10 ? val.toFixed(1) : String(Math.round(val));
+                                    if (val < 0.2) continue;
+                                } else if (currentLayer.indexOf('mucape') !== -1) {
+                                    if (val < 40) continue;
+                                } else if (currentLayer.indexOf('graupel') !== -1) {
+                                    if (val < 0.1) continue;
+                                }
+                                
+                                compCtx.font = '700 28px Arial, sans-serif';
+                                var vWidth = compCtx.measureText(strVal).width;
+                                compCtx.font = '700 20px Arial, sans-serif';
+                                var nWidth = compCtx.measureText(cityName).width;
+                                var w = Math.max(vWidth, nWidth);
+                                var rect = { left: cx - w/2 - 12, right: cx + w/2 + 12, top: cy - 25, bottom: cy + 35 };
+                                
+                                var collide = false;
+                                for (var bi = 0; bi < drawnBoxes.length; bi++) {
+                                    if (overlaps(rect, drawnBoxes[bi])) { collide = true; break; }
+                                }
+                                if (collide) continue;
+                                drawnBoxes.push(rect);
+                                
+                                compCtx.font = '700 20px Arial, sans-serif';
+                                compCtx.lineWidth = 5;
+                                compCtx.strokeStyle = 'rgba(8, 19, 28, .96)';
+                                compCtx.fillStyle = '#ffffff';
+                                compCtx.strokeText(cityName, cx, cy - 12);
+                                compCtx.fillText(cityName, cx, cy - 12);
+                                
+                                compCtx.font = '700 28px Arial, sans-serif';
+                                compCtx.strokeText(strVal, cx, cy + 14);
+                                compCtx.fillText(strVal, cx, cy + 14);
+                            }
+                        }
+
+                        // 4. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
                         var ttCanvas = document.createElement('canvas');
                         ttCanvas.width = 1080;
                         ttCanvas.height = 1920;

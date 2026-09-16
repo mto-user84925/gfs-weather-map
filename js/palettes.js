@@ -728,6 +728,18 @@
         label: 'Précipitations sur 24h', unit: 'mm', decimals: 0, transparent_below: 0,
         stops: PALETTES.pluie_cumul.stops
     };
+    PALETTES.rafales_max_24h = {
+        label: 'Rafales maximales (24h)', unit: 'km/h', decimals: 0, transparent_below: 0,
+        stops: PALETTES.rafales.stops
+    };
+    PALETTES.mucape_max_24h = {
+        label: 'Instabilité maximale (24h)', unit: 'J/kg', decimals: 0, transparent_below: 0,
+        stops: PALETTES.mucape.stops
+    };
+    PALETTES.neige_24h = {
+        label: 'Épaisseur maximale de neige (24h)', unit: 'cm', decimals: 0, transparent_below: 0,
+        stops: PALETTES.neige_au_sol.stops
+    };
     PALETTES.geopotentiel_500_meteociel = PALETTES.geopotentiel_500;
 
     // Calques de Probabilités 24h
