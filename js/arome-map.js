@@ -1824,7 +1824,8 @@
         // ────────────────────────────────────────────────────────────────────
         var tiktokAssets = null;
         function loadTiktokAssets() {
-            if (tiktokAssets && tiktokAssets.mask && tiktokAssets.mask.complete && tiktokAssets.mask.naturalWidth &&
+            if (tiktokAssets && tiktokAssets.maskMainland && tiktokAssets.maskMainland.complete && tiktokAssets.maskMainland.naturalWidth &&
+                tiktokAssets.maskCorse && tiktokAssets.maskCorse.complete && tiktokAssets.maskCorse.naturalWidth &&
                 tiktokAssets.white && tiktokAssets.white.complete && tiktokAssets.white.naturalWidth &&
                 tiktokAssets.borders && tiktokAssets.borders.complete && tiktokAssets.borders.naturalWidth) {
                 return Promise.resolve(tiktokAssets);
@@ -1840,15 +1841,17 @@
                 });
             }
             return Promise.all([
-                loadImg('config/mask_france_exact.png'),
+                loadImg('config/mask_france_mainland.png'),
+                loadImg('config/mask_corse_original.png'),
                 loadImg('config/white_france_tiktok.png'),
                 loadImg('config/borders_france_tiktok.png')
             ]).then(function(results) {
-                if (!results[0] || !results[1] || !results[2]) return null;
+                if (!results[0] || !results[1] || !results[2] || !results[3]) return null;
                 tiktokAssets = {
-                    mask: results[0],
-                    white: results[1],
-                    borders: results[2]
+                    maskMainland: results[0],
+                    maskCorse: results[1],
+                    white: results[2],
+                    borders: results[3]
                 };
                 return tiktokAssets;
             });
@@ -1997,40 +2000,38 @@
                     var img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = function() {
-                        // 1. Offscreen canvas 2200 × 1640 pour le calque météo masqué
-                        var rawCanvas = document.createElement('canvas');
-                        rawCanvas.width = 2200;
-                        rawCanvas.height = 1640;
-                        var rawCtx = rawCanvas.getContext('2d');
+                        // 1. Calque météo France métropolitaine (masquage strict par canal alpha, 0 mer, 0 étranger)
+                        var mCanvas = document.createElement('canvas');
+                        mCanvas.width = 2200;
+                        mCanvas.height = 1640;
+                        var mCtx = mCanvas.getContext('2d');
+                        mCtx.drawImage(img, 0, 0, 2200, 1640);
+                        mCtx.globalCompositeOperation = 'destination-in';
+                        mCtx.drawImage(assets.maskMainland, 0, 0, 2200, 1640);
 
-                        // Dessin du calque météo
-                        rawCtx.drawImage(img, 0, 0, 2200, 1640);
+                        // 2. Calque météo Corse (masquage strict par canal alpha, 0 mer, tracé propre)
+                        var cCanvas = document.createElement('canvas');
+                        cCanvas.width = 2200;
+                        cCanvas.height = 1640;
+                        var cCtx = cCanvas.getContext('2d');
+                        cCtx.drawImage(img, 0, 0, 2200, 1640);
+                        cCtx.globalCompositeOperation = 'destination-in';
+                        cCtx.drawImage(assets.maskCorse, 0, 0, 2200, 1640);
 
-                        // Masquage strict terre France + Corse (mer et étranger transparents)
-                        rawCtx.globalCompositeOperation = 'destination-in';
-                        rawCtx.drawImage(assets.mask, 0, 0, 2200, 1640);
-                        rawCtx.globalCompositeOperation = 'source-over';
-
-                        // Découpage et décalage de la Corse : dx = -150, dy = 0
-                        var csx = 1685, csy = 1215, csw = 135, csh = 230;
-                        var corseCanvas = document.createElement('canvas');
-                        corseCanvas.width = csw;
-                        corseCanvas.height = csh;
-                        corseCanvas.getContext('2d').drawImage(rawCanvas, csx, csy, csw, csh, 0, 0, csw, csh);
-                        rawCtx.clearRect(csx, csy, csw, csh);
-                        rawCtx.drawImage(corseCanvas, csx - 150, csy);
-
-                        // 2. Canevas d'assemblage 2200 × 1640
+                        // 3. Canevas d'assemblage 2200 × 1640
                         var composeCanvas = document.createElement('canvas');
                         composeCanvas.width = 2200;
                         composeCanvas.height = 1640;
                         var compCtx = composeCanvas.getContext('2d');
 
-                        // Fond blanc sous la France pour éviter les zones noires si 0 mm de pluie / donnée absente
+                        // Fond blanc sous la France et la Corse décalée pour éviter les zones transparentes si 0 mm de pluie / donnée sèche
                         compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
 
-                        // Dessin du calque météo par-dessus le fond blanc
-                        compCtx.drawImage(rawCanvas, 0, 0, 2200, 1640);
+                        // Dessin du calque météo métropole
+                        compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
+
+                        // Dessin de la Corse décalée de -150px vers la gauche (dans la Méditerranée, sans rectangle artificiel)
+                        compCtx.drawImage(cCanvas, -150, 0, 2200, 1640);
 
                         // Frontières départementales vectorielles nettes
                         compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
