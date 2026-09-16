@@ -166,7 +166,7 @@
             justify-content: center;
         }
 
-        /* Bloc Droite : Exports + Outils + Échéance */
+        /* Bloc Droite : Exports + Outils */
         .amfm-nav-actions {
             display: flex;
             align-items: center;
@@ -174,19 +174,71 @@
             flex-shrink: 0;
         }
 
+        /* Séparateur visuel entre groupes de la navbar */
+        .amfm-nav-sep {
+            width: 1px;
+            height: 24px;
+            background: var(--amfm-border);
+            border-radius: 1px;
+            flex-shrink: 0;
+        }
+
+        /* Dropdown Export */
+        .amfm-export-wrap {
+            position: relative;
+            display: inline-flex;
+        }
+        .amfm-export-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: rgba(10, 18, 34, 0.97);
+            border: 1px solid var(--amfm-border);
+            border-radius: 10px;
+            padding: 5px;
+            z-index: 500;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+            gap: 4px;
+            flex-direction: column;
+            min-width: 140px;
+        }
+        .amfm-export-wrap.open .amfm-export-dropdown { display: flex; }
+        .amfm-export-dropdown .amfm-btn {
+            width: 100%;
+            justify-content: flex-start;
+        }
+        .amfm-export-dropdown .amfm-btn-download {
+            background: rgba(2, 132, 199, 0.2) !important;
+            border-color: rgba(0, 210, 255, 0.3) !important;
+            color: #38bdf8 !important;
+        }
+        .amfm-export-dropdown .amfm-btn-download:hover {
+            background: rgba(2, 132, 199, 0.5) !important;
+        }
+
+        /* Headline repositionnée en bas à gauche de la carte (hors navbar) */
         .amfm-headline {
+            position: absolute;
+            left: max(14px, env(safe-area-inset-left));
+            bottom: calc(max(22px, env(safe-area-inset-bottom)) + 70px);
+            z-index: 110;
             font-size: 12px;
             font-weight: 700;
             color: var(--amfm-accent);
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
-            background: rgba(0, 210, 255, 0.1);
+            background: var(--amfm-surface);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(0, 210, 255, 0.25);
             padding: 4px 10px;
             border-radius: 8px;
-            max-width: 280px;
+            max-width: 320px;
             overflow: hidden;
             text-overflow: ellipsis;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
         }
         .amfm-headline .amfm-headline-layer {
             color: var(--amfm-muted);
@@ -2479,7 +2531,7 @@
 
                 <!-- Droite : Outils Carte + Exports + Logo -->
                 <div class="amfm-nav-actions">
-                    <!-- Outils d'affichage Carte (Villes, Valeurs, Cyclones, Recentrage) -->
+                    <!-- Outils d'affichage Carte (Villes, Valeurs, Cyclones) -->
                     <div class="amfm-btn-group">
                         <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cities aria-pressed="true" aria-label="Afficher ou masquer les villes" title="Afficher/Masquer les villes">
                             <i class="fa-solid fa-city" aria-hidden="true"></i> <span>Villes</span>
@@ -2490,17 +2542,18 @@
                         <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones aria-pressed="true" aria-label="Afficher ou masquer les cyclones" title="Afficher/Masquer les cyclones, cônes et trajectoires sur la carte">
                             <i class="fa-solid fa-hurricane" aria-hidden="true"></i> <span>Cyclones</span>
                         </button>
-                        <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-sea aria-pressed="true" aria-label="Masquer la mer" title="Masquer la mer (afficher les températures uniquement sur terre avec mer en bleu)">
-                            <i class="fa-solid fa-square-check" data-amfm-sea-check aria-hidden="true"></i> <span>Masquer la mer</span>
-                        </button>
                     </div>
 
-                    <!-- Sélecteur Mode Terre / Mer (Synchronisé avec le bouton Masquer la mer) -->
+                    <div class="amfm-nav-sep"></div>
+
+                    <!-- Sélecteur Mode Terre / Mer -->
                     <select class="amfm-select-sea" data-amfm-select-sea aria-label="Filtrer l'affichage des températures en mer et littoral" title="Zone d'affichage des températures (Terres / Mer)">
-                        <option value="land" selected>🌲 Terres seules (Mer bleue)</option>
-                        <option value="none">🌊 Terres &amp; Mer (Complet)</option>
+                        <option value="land" selected>🌲 Terres seules</option>
+                        <option value="none">🌊 Terres & Mer</option>
                         <option value="coast">🏖️ Terres + Bord de mer</option>
                     </select>
+
+                    <div class="amfm-nav-sep"></div>
 
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-reset aria-label="Recentrer la carte météo" title="Recentrer la carte">
                         <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
@@ -2509,32 +2562,43 @@
                     <button type="button" id="amfm-logo-action-btn" class="amfm-btn amfm-btn-logo-switch" title="Changer de logo : Météo-Climat Pro ⟷ Monsieur Météo" aria-label="Changer de logo">
                         <i class="fa-solid fa-repeat" aria-hidden="true"></i> <span id="amfm-logo-action-text">Monsieur Météo</span>
                     </button>
-                    <div class="amfm-btn-group">
-                        <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture aria-label="Télécharger en PNG 4:3" title="Télécharger la carte en PNG HD (4:3 Standard)">
-                            <i class="fa-solid fa-download" aria-hidden="true"></i> <span>PNG</span>
+
+                    <div class="amfm-nav-sep"></div>
+
+                    <!-- Exports : dropdown + TikTok toujours visible -->
+                    <div class="amfm-export-wrap" id="amfm-export-wrap">
+                        <button type="button" class="amfm-btn amfm-btn-download" id="amfm-export-toggle" aria-haspopup="true" aria-expanded="false" title="Exports carte (PNG, Écran, JPEG, GIF…)">
+                            <i class="fa-solid fa-download" aria-hidden="true"></i> <span>Export</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;" aria-hidden="true"></i>
                         </button>
-                        <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-screen aria-label="Capture d'écran HD fidèle" title="Télécharger la Capture d'Écran HD exacte (reproduction 100% fidèle au cadrage actuel)">
-                            <i class="fa-solid fa-camera" aria-hidden="true"></i> <span>Écran</span>
-                        </button>
-                        <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-jpeg aria-label="Télécharger en JPEG" title="Télécharger en JPEG">
-                            <i class="fa-solid fa-image" aria-hidden="true"></i> <span>JPEG</span>
-                        </button>
-                        <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif aria-label="Télécharger l'animation GIF" title="Télécharger l'animation GIF (Carte globale)">
-                            <i class="fa-solid fa-film" aria-hidden="true"></i> <span>GIF</span>
-                        </button>
-                        <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif-screen aria-label="Télécharger le GIF animé de l'écran" title="Télécharger l'animation GIF de l'écran (zoom & vue actuelle)">
-                            <i class="fa-solid fa-video" aria-hidden="true"></i> <span>GIF Écran</span>
-                        </button>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="font-size: 11px; display: flex; align-items: center; gap: 4px; color: #555; cursor: pointer;">
-                                <input type="checkbox" id="tiktok-values-checkbox" checked>
-                                Incruster valeurs
-                            </label>
-                            <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok" data-amfm-capture-tiktok aria-label="Pack TikTok 16 Cartes" title="📱 Pack TikTok 16 Cartes (J0 à J15, 1080×1920 fond transparent, France + Corse)">
-                                <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>TikTok 16j</span>
+                        <div class="amfm-export-dropdown" role="menu">
+                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture aria-label="Télécharger en PNG 4:3" title="Télécharger la carte en PNG HD (4:3 Standard)">
+                                <i class="fa-solid fa-image" aria-hidden="true"></i> PNG
+                            </button>
+                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-screen aria-label="Capture d'écran HD fidèle" title="Télécharger la Capture d'Écran HD exacte">
+                                <i class="fa-solid fa-camera" aria-hidden="true"></i> Écran
+                            </button>
+                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-jpeg aria-label="Télécharger en JPEG" title="Télécharger en JPEG">
+                                <i class="fa-solid fa-file-image" aria-hidden="true"></i> JPEG
+                            </button>
+                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif aria-label="Télécharger l'animation GIF" title="Télécharger l'animation GIF (Carte globale)">
+                                <i class="fa-solid fa-film" aria-hidden="true"></i> GIF
+                            </button>
+                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif-screen aria-label="Télécharger le GIF animé de l'écran" title="Télécharger l'animation GIF de l'écran">
+                                <i class="fa-solid fa-video" aria-hidden="true"></i> GIF Écran
                             </button>
                         </div>
                     </div>
+
+                    <!-- TikTok : toujours visible + toggle valeurs intégré -->
+                    <button type="button" class="amfm-btn amfm-btn-toggle" id="tiktok-values-btn" title="Incruster les valeurs de températures sur les exports TikTok" aria-pressed="true" style="padding: 0 8px; font-size:11px;">
+                        <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+                        <input type="checkbox" id="tiktok-values-checkbox" checked style="display:none;">
+                    </button>
+                    <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok" data-amfm-capture-tiktok aria-label="Pack TikTok 16 Cartes" title="📱 Pack TikTok 16 Cartes (J0 à J15, 1080×1920 fond transparent, France + Corse)">
+                        <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>TikTok 16j</span>
+                    </button>
+
+                    <div class="amfm-nav-sep"></div>
 
                     <!-- Outils Avancés : Météogramme, Cyclones & Mode TV -->
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-diagram aria-pressed="false" aria-label="Météogramme temporel au clic" title="📈 Météogramme temporel (Cliquer sur la carte pour voir l'évolution 16j)">
@@ -2545,19 +2609,21 @@
                         <i class="fa-solid fa-hurricane"></i>
                     </button>
 
-                    <a href="extremes.html" target="_blank" id="amfm-btn-world-alerts" class="amfm-btn amfm-btn-world-alerts" aria-label="Observatoire Mondial des Extrêmes J+16 (Nouvel onglet)" title="🌍 Observatoire Mondial des Extrêmes J+16 (Ouvre le site complet dans un nouvel onglet)">
+                    <a href="extremes.html" target="_blank" id="amfm-btn-world-alerts" class="amfm-btn amfm-btn-world-alerts" aria-label="Observatoire Mondial des Extrêmes J+16 (Nouvel onglet)" title="🌍 Observatoire Mondial des Extrêmes J+16">
                         <i class="fa-solid fa-earth-americas" style="color: #38bdf8;"></i> <span>Extrêmes J+16</span> <span class="amfm-badge" id="world-alerts-count" style="background:#ef4444; color:#fff !important; display:none;">0</span>
                     </a>
 
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-tv aria-label="Mode Présentation TV (Touche Z)" title="📺 Mode Présentation TV / Zen (Touche Z ou T)">
                         <i class="fa-solid fa-tv" aria-hidden="true"></i>
                     </button>
-
-                    <div class="amfm-headline" data-amfm-headline aria-live="polite">
-                        <span class="amfm-headline-layer">Température à 2 m (°C) — </span>Chargement…
-                    </div>
                 </div>
             </div>
+
+            <!-- Headline : couche active + échéance — positionnée en bas à gauche de la carte -->
+            <div class="amfm-headline" data-amfm-headline aria-live="polite">
+                <span class="amfm-headline-layer">Température à 2 m (°C) — </span>Chargement…
+            </div>
+
 
             <!-- 🌀 Bandeau d'alerte des Cyclones & Typhons actifs en temps réel (sous la navbar, 0 chevauchement) -->
             <div id="cyclone-alert-bar" class="cyclone-alert-bar" style="display:none;" aria-live="polite">
@@ -2893,7 +2959,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260916-anti-overlap"></script>
+    <script src="js/arome-map.js?v=20260916-navbar-ux"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";

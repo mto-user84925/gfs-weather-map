@@ -1889,7 +1889,7 @@
                 if (!daySteps || !daySteps.length) return;
 
                 var chosen = daySteps[0];
-                if (layerKey && layerKey.indexOf('cumul') !== -1) {
+                if (layerKey && (layerKey.indexOf('cumul') !== -1 || layerKey.indexOf('pluie_24h') !== -1 || layerKey.indexOf('neige_24h') !== -1)) {
                     // Pour les cumuls de pluie sur 24h, prendre l'échéance terminale du jour
                     chosen = daySteps[daySteps.length - 1];
                 } else {
@@ -2180,12 +2180,14 @@
                             compCtx.shadowOffsetX = 0;
                             compCtx.shadowOffsetY = 0;
                             
-                            for (var i = 0; i < valsData.length; i++) {
+                             for (var i = 0; i < valsData.length; i++) {
                                 var v = valsData[i];
-                                compCtx.fillStyle = '#000000'; // Default Black
                                 if (isTemp) {
-                                    if (v.val === minVal) compCtx.fillStyle = '#0078D7'; // Blue for Min
-                                    else if (v.val === maxVal) compCtx.fillStyle = '#E81123'; // Red for Max
+                                    if (v.val === minVal) compCtx.fillStyle = '#0078D7'; // Bleu = Tn
+                                    else if (v.val === maxVal) compCtx.fillStyle = '#E81123'; // Rouge = Tx
+                                    else compCtx.fillStyle = '#000000';
+                                } else {
+                                    compCtx.fillStyle = '#ffffff'; // Blanc pour toutes les autres couches
                                 }
                                 compCtx.fillText(v.text, v.cx, v.cy);
                             }
@@ -5095,6 +5097,39 @@
         if (captureTiktokButton) {
             captureTiktokButton.addEventListener('click', function () { downloadTiktokPack(); });
         }
+
+        // Dropdown Export : ouvrir/fermer + fermeture au clic extérieur
+        var exportWrap = document.getElementById('amfm-export-wrap');
+        var exportToggleBtn = document.getElementById('amfm-export-toggle');
+        if (exportToggleBtn && exportWrap) {
+            exportToggleBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = exportWrap.classList.toggle('open');
+                exportToggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (!exportWrap.contains(e.target)) {
+                    exportWrap.classList.remove('open');
+                    exportToggleBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        // Bouton # : toggle "Incruster valeurs" sur les exports TikTok
+        var tiktokValuesBtn = document.getElementById('tiktok-values-btn');
+        var tiktokValuesCb = document.getElementById('tiktok-values-checkbox');
+        if (tiktokValuesBtn && tiktokValuesCb) {
+            tiktokValuesBtn.addEventListener('click', function () {
+                tiktokValuesCb.checked = !tiktokValuesCb.checked;
+                tiktokValuesBtn.classList.toggle('is-active', tiktokValuesCb.checked);
+                tiktokValuesBtn.setAttribute('aria-pressed', tiktokValuesCb.checked ? 'true' : 'false');
+            });
+            // État initial
+            tiktokValuesBtn.classList.toggle('is-active', tiktokValuesCb.checked);
+        }
+
+
+
         if (toggleCitiesButton) {
             toggleCitiesButton.addEventListener('click', function () {
                 citiesVisible = !citiesVisible;
@@ -5103,6 +5138,7 @@
                 scheduleRender();
             });
         }
+
         if (toggleValuesButton) {
             toggleValuesButton.addEventListener('click', function () {
                 valuesVisible = !valuesVisible;
