@@ -398,6 +398,9 @@
             if (/^(?:https?:\/\/|data:|blob:)/i.test(path || '')) {
                 return path;
             }
+            if (path && (String(path).indexOf('config/') === 0 || String(path).indexOf('js/') === 0)) {
+                return String(path).replace(/^\/+/, '');
+            }
             return baseUrl + '/' + String(path || '').replace(/^\/+/, '');
         }
 
@@ -1821,16 +1824,19 @@
         // ────────────────────────────────────────────────────────────────────
         var tiktokAssets = null;
         function loadTiktokAssets() {
-            if (tiktokAssets && tiktokAssets.mask.complete && tiktokAssets.white.complete && tiktokAssets.borders.complete) {
+            if (tiktokAssets && tiktokAssets.mask && tiktokAssets.mask.complete && tiktokAssets.mask.naturalWidth &&
+                tiktokAssets.white && tiktokAssets.white.complete && tiktokAssets.white.naturalWidth &&
+                tiktokAssets.borders && tiktokAssets.borders.complete && tiktokAssets.borders.naturalWidth) {
                 return Promise.resolve(tiktokAssets);
             }
-            function loadImg(src) {
+            function loadImg(relPath) {
                 return new Promise(function(resolve) {
                     var img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = function() { resolve(img); };
-                    img.onerror = function(e) { console.error('Erreur chargement ' + src, e); resolve(null); };
-                    img.src = versioned(src);
+                    img.onerror = function(e) { console.error('Erreur chargement ' + relPath, e); resolve(null); };
+                    var absUrl = new URL(relPath, window.location.href).href;
+                    img.src = absUrl + (absUrl.indexOf('?') === -1 ? '?' : '&') + 'v=' + Date.now();
                 });
             }
             return Promise.all([
