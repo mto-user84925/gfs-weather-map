@@ -1,4 +1,4 @@
-﻿name: "AIFS — Build & Deploy"
+name: "AIFS — Build & Deploy"
 
 on:
   workflow_dispatch:
@@ -198,12 +198,14 @@ jobs:
           mkdir -p _site
           cp index.html _site/
           cp extremes.html _site/ 2>/dev/null || true
-          cp logo.png _site/ 2>/dev/null || true
+          cp logo*.png _site/ 2>/dev/null || true
           cp cyclones_actifs.json _site/ 2>/dev/null || true
           cp output/cyclones_actifs.json _site/ 2>/dev/null || true
           cp alertes_extremes_monde.json _site/ 2>/dev/null || true
           cp output/alertes_extremes_monde.json _site/ 2>/dev/null || true
+          touch _site/.nojekyll
           cp -r js _site/
+          cp -r config _site/ 2>/dev/null || true
           cp -r output _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

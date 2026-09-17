@@ -1835,7 +1835,18 @@
                     var img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = function() { resolve(img); };
-                    img.onerror = function(e) { console.error('Erreur chargement ' + relPath, e); resolve(null); };
+                    img.onerror = function() {
+                        var fallbackUrl = 'https://raw.githubusercontent.com/mto-user84925/gfs-weather-map/main/' + relPath;
+                        console.warn('Fallback GitHub Raw pour ' + relPath + ' -> ' + fallbackUrl);
+                        var fbImg = new Image();
+                        fbImg.crossOrigin = 'anonymous';
+                        fbImg.onload = function() { resolve(fbImg); };
+                        fbImg.onerror = function(err2) {
+                            console.error('Erreur chargement final ' + relPath, err2);
+                            resolve(null);
+                        };
+                        fbImg.src = fallbackUrl;
+                    };
                     var absUrl = new URL(relPath, window.location.href).href;
                     img.src = absUrl + (absUrl.indexOf('?') === -1 ? '?' : '&') + 'v=' + Date.now();
                 });
@@ -1856,6 +1867,7 @@
                 return tiktokAssets;
             });
         }
+
 
         function getTiktokSteps(layerKey) {
             var all = availableSteps();
@@ -1950,7 +1962,8 @@
 
             loadTiktokAssets().then(function(assets) {
                 if (!assets) {
-                    setToolHint('Erreur : Ressources cartographiques TikTok introuvables.');
+                    console.error('Erreur : Ressources cartographiques TikTok introuvables.');
+                    alert('Erreur : les masques cartographiques TikTok sont momentanément inaccessibles.');
                     resetBtn();
                     return;
                 }
@@ -5115,18 +5128,6 @@
             });
         }
 
-        // Bouton # : toggle "Incruster valeurs" sur les exports TikTok
-        var tiktokValuesBtn = document.getElementById('tiktok-values-btn');
-        var tiktokValuesCb = document.getElementById('tiktok-values-checkbox');
-        if (tiktokValuesBtn && tiktokValuesCb) {
-            tiktokValuesBtn.addEventListener('click', function () {
-                tiktokValuesCb.checked = !tiktokValuesCb.checked;
-                tiktokValuesBtn.classList.toggle('is-active', tiktokValuesCb.checked);
-                tiktokValuesBtn.setAttribute('aria-pressed', tiktokValuesCb.checked ? 'true' : 'false');
-            });
-            // État initial
-            tiktokValuesBtn.classList.toggle('is-active', tiktokValuesCb.checked);
-        }
 
 
 

@@ -217,6 +217,37 @@
             background: rgba(2, 132, 199, 0.5) !important;
         }
 
+        /* Label Checkbox Valeurs TikTok */
+        .amfm-tiktok-val-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #e2e8f0;
+            cursor: pointer;
+            user-select: none;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--amfm-border);
+            padding: 0 10px;
+            height: 38px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .amfm-tiktok-val-label:hover {
+            background: rgba(0, 210, 255, 0.15);
+            border-color: var(--amfm-accent);
+            color: #fff;
+        }
+        .amfm-tiktok-val-label input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: #00d2ff;
+            width: 15px;
+            height: 15px;
+            margin: 0;
+        }
+
         /* Headline repositionnée en bas à gauche de la carte (hors navbar) */
         .amfm-headline {
             position: absolute;
@@ -2589,11 +2620,11 @@
                         </div>
                     </div>
 
-                    <!-- TikTok : toujours visible + toggle valeurs intégré -->
-                    <button type="button" class="amfm-btn amfm-btn-toggle" id="tiktok-values-btn" title="Incruster les valeurs de températures sur les exports TikTok" aria-pressed="true" style="padding: 0 8px; font-size:11px;">
-                        <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
-                        <input type="checkbox" id="tiktok-values-checkbox" checked style="display:none;">
-                    </button>
+                    <!-- TikTok : toujours visible + option Incruster valeurs explicite -->
+                    <label class="amfm-tiktok-val-label" title="Incruster les valeurs numériques (températures, précipitations, vent, neige…) sur les 16 cartes TikTok">
+                        <input type="checkbox" id="tiktok-values-checkbox" checked>
+                        <span>Incruster valeurs</span>
+                    </label>
                     <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok" data-amfm-capture-tiktok aria-label="Pack TikTok 16 Cartes" title="📱 Pack TikTok 16 Cartes (J0 à J15, 1080×1920 fond transparent, France + Corse)">
                         <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>TikTok 16j</span>
                     </button>
@@ -2959,7 +2990,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260916-navbar-ux"></script>
+    <script src="js/arome-map.js?v=20260917-tiktok-fix"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";
