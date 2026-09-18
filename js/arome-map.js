@@ -134,9 +134,11 @@
         var stale = app.querySelector('[data-amfm-stale]');
         var viewport = app.querySelector('[data-amfm-viewport]');
         var weatherCanvas = app.querySelector('[data-amfm-weather]');
+        var frontsCanvas = app.querySelector('[data-amfm-fronts]');
         var vectorCanvas = app.querySelector('[data-amfm-vectors]');
         var valuesCanvas = app.querySelector('[data-amfm-values]');
         var labelsCanvas = app.querySelector('[data-amfm-labels]');
+        var frontsContext = frontsCanvas ? frontsCanvas.getContext('2d') : null;
         var vectorContext = vectorCanvas ? vectorCanvas.getContext('2d') : null;
         var valuesContext = valuesCanvas ? valuesCanvas.getContext('2d') : null;
         var labelsContext = labelsCanvas ? labelsCanvas.getContext('2d') : null;
@@ -169,6 +171,7 @@
         var toggleCitiesButton = app.querySelector('[data-amfm-toggle-cities]');
         var toggleValuesButton = app.querySelector('[data-amfm-toggle-values]');
         var toggleCyclonesButton = app.querySelector('[data-amfm-toggle-cyclones]');
+        var toggleFrontsButton = app.querySelector('[data-amfm-toggle-fronts]');
         var btnToggleCycloneCone = document.getElementById('btn-toggle-cyclone-cone');
         var btnToggleCycloneTracks = document.getElementById('btn-toggle-cyclone-tracks');
         var btnToggleCycloneLabels = document.getElementById('btn-toggle-cyclone-labels');
@@ -217,6 +220,7 @@
         var citiesVisible = true;
         var valuesVisible = false;
         var cyclonesVisible = true;
+        var frontsVisible = false;
         var cycloneConeVisible = true;
         var cycloneTracksVisible = true;
         // cycloneLabelMode: 'name_only' (par défaut : épuré, idéal téléchargement), 'full' (cartouche complet), 'none' (masqué)
@@ -244,6 +248,12 @@
             if (logoImage) logoImage.src = src;
             if (app) app.dataset.logo = src;
         };
+        window._composeCaptureCanvas = function() { return composeCaptureCanvas.apply(null, arguments); };
+        window._computeTvFrontsData = function() { return computeTvFrontsData.apply(null, arguments); };
+        window._loadTiktokAssets = function() { return loadTiktokAssets.apply(null, arguments); };
+        window._getCurrentWeatherImage = function() { return currentWeatherImage; };
+        window._getCurrentLayer = function() { return currentLayer; };
+        window._getTiktokAssets = function() { return tiktokAssets; };
         var franceMaskImage = new Image();
         franceMaskImage.crossOrigin = 'anonymous';
         franceMaskImage.src = resolvePath('maps/mask_france.png');
@@ -555,6 +565,13 @@
                     bestDistance = distance;
                     bestValue = first.value +
                         (second.value - first.value) * fraction;
+                } else if (Math.abs(distance - bestDistance) < 15.0) {
+                    var candVal = first.value + (second.value - first.value) * fraction;
+                    // Disambiguate magenta wrap-around: if candidate is positive hot and bestValue is negative cold, prefer hot when red >= 90
+                    if (candVal > 30 && bestValue < 0 && target[0] >= 90) {
+                        bestDistance = distance;
+                        bestValue = candVal;
+                    }
                 }
             }
             return bestValue;
@@ -1166,6 +1183,59 @@
                 context.restore();
                 context.globalAlpha = 1;
             }
+
+            if (frontsVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
+                var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+                var fMask = (isFranceDomain && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
+                var exportFrontsData = computeTvFrontsData(activeImg, currentLayer, fMask);
+                if (exportFrontsData && exportFrontsData.lines && exportFrontsData.lines.length) {
+                    context.save();
+                    context.transform(hScale, 0, 0, vScale, offX, offY);
+
+                    var fCan = document.createElement('canvas');
+                    fCan.width = 2200;
+                    fCan.height = natH;
+                    var fCtx = fCan.getContext('2d');
+                    fCtx.lineCap = 'round';
+                    fCtx.lineJoin = 'round';
+                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                    fCtx.shadowBlur = 12;
+                    fCtx.shadowOffsetX = 3.5;
+                    fCtx.shadowOffsetY = 3.5;
+                    fCtx.strokeStyle = '#ffffff';
+                    fCtx.lineWidth = 7.5;
+
+                    for (var li = 0; li < exportFrontsData.lines.length; li++) {
+                        var line = exportFrontsData.lines[li];
+                        if (line.length < 2) continue;
+                        fCtx.beginPath();
+                        fCtx.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
+                        for (var pi = 1; pi < line.length; pi++) {
+                            fCtx.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
+                        }
+                        fCtx.stroke();
+                    }
+
+                    // Sur la France : masquer les lignes blanches pour ne jamais couper la Corse
+                    var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+                    var mainlandMask = (typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
+                    if (isFranceDomain && mainlandMask && mainlandMask.naturalWidth) {
+                        var mfCan = document.createElement('canvas');
+                        mfCan.width = 2200;
+                        mfCan.height = natH;
+                        var mfCtx = mfCan.getContext('2d');
+                        mfCtx.drawImage(fCan, 0, 0);
+                        mfCtx.globalCompositeOperation = 'destination-in';
+                        mfCtx.drawImage(mainlandMask, 0, 0, 2200, natH);
+                        context.drawImage(mfCan, 0, 0);
+                    } else {
+                        context.drawImage(fCan, 0, 0);
+                    }
+
+                    context.restore();
+                }
+            }
+
             context.restore(); // Fin clip carte
 
             // Logo Météo-Climat Pro officiel (en haut à droite, pur PNG sans cadre noir)
@@ -1381,6 +1451,109 @@
                     h: (isWorldDomain() ? 1320.0 : 1640.0) * vScale
                 };
                 drawCycloneOverlays(context, exportMapRect, output.width, output.height, true, occupied);
+            }
+
+            // 📺 Cartouches TV broadcast automatiques (si l'option "Lignes TV" est active / cochée et sans la grille de valeurs)
+            if (frontsVisible && !valuesVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
+                try {
+                    var isFranceDom = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+                    var fMask = (isFranceDom && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
+                    var fData = computeTvFrontsData(activeImg, currentLayer, fMask);
+                    if (fData && fData.badges && fData.badges.length) {
+                        var allExportBadges = fData.badges.slice();
+
+                        // Ajout propre du cartouche Corse sur le domaine France
+                        if (isFranceDom && window.getLayerPalette && typeof valueFromColour === 'function') {
+                            try {
+                                var sCan = document.createElement('canvas');
+                                sCan.width = activeImg.naturalWidth || 2200;
+                                sCan.height = activeImg.naturalHeight || 1640;
+                                var sCtx = sCan.getContext('2d');
+                                sCtx.drawImage(activeImg, 0, 0);
+                                var cPix = sCtx.getImageData(1760, 1334, 1, 1).data;
+                                if (cPix[3] > 20) {
+                                    var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
+                                    if (cVal !== null && Number.isFinite(cVal)) {
+                                        var cLabel = '';
+                                        if (currentLayer.indexOf('temperature') !== -1) {
+                                            var c0 = Math.floor(cVal / 2) * 2;
+                                            var c1 = c0 + 2;
+                                            cLabel = c0 + ' à ' + c1 + ' °C';
+                                        } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
+                                            cLabel = Math.round(cVal) + ' mm';
+                                        } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                            cLabel = Math.round(cVal) + ' km/h';
+                                        } else {
+                                            var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                            cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                        }
+                                        allExportBadges.push({
+                                            u: 1760 / 2200.0,
+                                            v: 1334 / natH,
+                                            label: cLabel,
+                                            isCorse: true
+                                        });
+                                    }
+                                }
+                            } catch (eCorseExp) {}
+                        }
+
+                        var bFontSize = hScale < 1.35 ? 28 : 32;
+                        context.save();
+                        context.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        context.textAlign = 'center';
+                        context.textBaseline = 'middle';
+                        context.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                        context.shadowBlur = 10;
+                        context.shadowOffsetX = 3.5;
+                        context.shadowOffsetY = 3.5;
+
+                        for (var bi = 0; bi < allExportBadges.length; bi++) {
+                            var b = allExportBadges[bi];
+                            var bx = b.u * 2200.0 * hScale + offX;
+                            var by = b.v * natH * vScale + offY;
+                            var text = b.label;
+                            var curFontSize = b.isCorse ? Math.round(bFontSize * 0.9) : bFontSize;
+                            context.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            var tw = context.measureText(text).width;
+                            var padX = 16;
+                            var padY = 10;
+                            var bw = tw + padX * 2;
+                            var bh = curFontSize + padY * 2;
+                            var rad = 12;
+
+                            // Protection anti-collision avec le titre, le logo ou la légende
+                            var bRect = { left: bx - bw / 2 - 6, right: bx + bw / 2 + 6, top: by - bh / 2 - 6, bottom: by + bh / 2 + 6 };
+                            var clash = false;
+                            for (var oi = 0; oi < occupied.length; oi++) {
+                                var occ = occupied[oi];
+                                if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                    clash = true;
+                                    break;
+                                }
+                            }
+                            if (clash) continue;
+                            occupied.push(bRect);
+
+                            context.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                            context.strokeStyle = '#ffffff';
+                            context.lineWidth = 2.5;
+
+                            context.beginPath();
+                            if (typeof context.roundRect === 'function') {
+                                context.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                            } else {
+                                context.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                            }
+                            context.fill();
+                            context.stroke();
+
+                            context.fillStyle = '#ffffff';
+                            context.fillText(text, bx, by);
+                        }
+                        context.restore();
+                    }
+                } catch (eFrontExp) {}
             }
 
             // Villes sur la carte (respecte citiesVisible et se masque automatiquement si valuesVisible est actif)
@@ -1867,6 +2040,7 @@
                 return tiktokAssets;
             });
         }
+        loadTiktokAssets().catch(function() {});
 
 
         function getTiktokSteps(layerKey) {
@@ -2049,7 +2223,141 @@
                         // Frontières départementales vectorielles nettes
                         compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
 
-                        // 3. Incrustation des valeurs numériques façon TV (optionnel)
+                        // 2bis. Incrustation des LIGNES TV épaisses + Cartouches automatiques (optionnel)
+                        var includeFronts = document.getElementById('tiktok-fronts-checkbox') && document.getElementById('tiktok-fronts-checkbox').checked;
+                        if (includeFronts) {
+                            var frontsData = computeTvFrontsData(img, currentLayer, assets ? assets.maskMainland : null);
+                            if (frontsData && (frontsData.lines.length || frontsData.badges.length)) {
+                                var fCanvas = document.createElement('canvas');
+                                fCanvas.width = 2200;
+                                fCanvas.height = 1640;
+                                var fCtx = fCanvas.getContext('2d');
+
+                                fCtx.lineCap = 'round';
+                                fCtx.lineJoin = 'round';
+                                fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                fCtx.shadowBlur = 14;
+                                fCtx.shadowOffsetX = 4;
+                                fCtx.shadowOffsetY = 4;
+                                fCtx.strokeStyle = '#ffffff';
+                                fCtx.lineWidth = 8.5; // Bien épaisse pour téléchargement
+
+                                for (var li = 0; li < frontsData.lines.length; li++) {
+                                    var line = frontsData.lines[li];
+                                    if (line.length < 2) continue;
+                                    fCtx.beginPath();
+                                    fCtx.moveTo(line[0][0] * 2200, line[0][1] * 1640);
+                                    for (var pi = 1; pi < line.length; pi++) {
+                                        fCtx.lineTo(line[pi][0] * 2200, line[pi][1] * 1640);
+                                    }
+                                    fCtx.stroke();
+                                }
+
+                                // Métropole uniquement (la Corse reste propre sans balafre de front)
+                                var mfCanvas = document.createElement('canvas');
+                                mfCanvas.width = 2200;
+                                mfCanvas.height = 1640;
+                                var mfCtx = mfCanvas.getContext('2d');
+                                mfCtx.drawImage(fCanvas, 0, 0);
+                                mfCtx.globalCompositeOperation = 'destination-in';
+                                mfCtx.drawImage(assets.maskMainland, 0, 0);
+                                compCtx.drawImage(mfCanvas, 0, 0);
+
+                                // Cartouches de plages automatiques TV si "Valeurs" n'est PAS coché (pour ne pas surcharger)
+                                var includeValuesCheckbox = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                                if (!includeValuesCheckbox && frontsData.badges.length) {
+                                    compCtx.save();
+                                    compCtx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                                    compCtx.shadowBlur = 12;
+                                    compCtx.shadowOffsetX = 4;
+                                    compCtx.shadowOffsetY = 4;
+                                    var fontSize = 38;
+                                    compCtx.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    compCtx.textAlign = 'center';
+                                    compCtx.textBaseline = 'middle';
+
+                                    var allBadgesToDraw = frontsData.badges.slice();
+
+                                    // Ajout propre d'un cartouche sur la Corse si disponible
+                                    if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
+                                        try {
+                                            var corseSampler = cCanvas.getContext('2d');
+                                            var cPix = corseSampler.getImageData(1760, 1334, 1, 1).data;
+                                            if (cPix[3] > 20) {
+                                                var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
+                                                if (cVal !== null && Number.isFinite(cVal)) {
+                                                    var cLabel = '';
+                                                    if (currentLayer.indexOf('temperature') !== -1) {
+                                                        var c0 = Math.floor(cVal / 2) * 2;
+                                                        var c1 = c0 + 2;
+                                                        cLabel = c0 + ' à ' + c1 + ' °C';
+                                                    } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
+                                                        cLabel = Math.round(cVal) + ' mm';
+                                                    } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                                        cLabel = Math.round(cVal) + ' km/h';
+                                                    } else {
+                                                        var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                                        cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                                    }
+                                                    allBadgesToDraw.push({
+                                                        u: 1610 / 2200,
+                                                        v: 1334 / 1640,
+                                                        label: cLabel,
+                                                        isCorse: true
+                                                    });
+                                                }
+                                            }
+                                        } catch(eCorse) {}
+                                    }
+
+                                    for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
+                                        var badge = allBadgesToDraw[bi];
+                                        var bx = badge.u * 2200;
+                                        var by = badge.v * 1640;
+                                        var text = badge.label;
+                                        var curFontSize = badge.isCorse ? 32 : fontSize;
+                                        compCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                        var tw = compCtx.measureText(text).width;
+                                        var padX = badge.isCorse ? 12 : 16;
+                                        var padY = badge.isCorse ? 8 : 10;
+                                        var bw = tw + padX * 2;
+                                        var bh = curFontSize + padY * 2;
+                                        var rad = badge.isCorse ? 10 : 12;
+
+                                        compCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                                        compCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+                                        compCtx.lineWidth = 2.5;
+
+                                        compCtx.beginPath();
+                                        if (compCtx.roundRect) compCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                        else compCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                                        compCtx.fill();
+                                        compCtx.stroke();
+
+                                        compCtx.fillStyle = '#ffffff';
+                                        compCtx.fillText(text, bx, by);
+                                    }
+                                    compCtx.restore();
+                                }
+                            }
+                        }
+
+                        // 4. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
+                        var ttCanvas = document.createElement('canvas');
+                        ttCanvas.width = 1080;
+                        ttCanvas.height = 1920;
+                        var ttCtx = ttCanvas.getContext('2d');
+                        ttCtx.clearRect(0, 0, 1080, 1920);
+
+                        var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
+                        var targetW = 1040;
+                        var targetH = Math.round(targetW * (cropH / cropW));
+                        var targetX = Math.round((1080 - targetW) / 2);
+                        var targetY = Math.round((1920 - targetH) / 2);
+
+                        ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+
+                        // 5. Incrustation des valeurs numériques façon TV (disponible seule ou avec les lignes TV)
                         var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
                         if (includeValues && places && places.length && window.getLayerPalette) {
                             var samplerCtx = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
@@ -2064,29 +2372,55 @@
                             var valsData = [];
 
                             if (layoutMode === 'bureau') {
-                                // 🎯 Points exactement extraits de votre image de référence (carte-meteo-max-2026-09-26.png)
-                                var bureauPoints = [
-                                    [1002.1, 111.3, 0], [986.0, 209.2, 0], [656.1, 244.1, 0], [862.6, 266.9, 0],
-                                    [1108.1, 281.6, 0], [1316.0, 297.7, 0], [961.9, 343.3, 0], [1451.5, 359.4, 0],
-                                    [411.9, 398.3, 0], [802.3, 399.6, 0], [1234.2, 430.5, 0], [684.2, 450.6, 0],
-                                    [466.9, 464.0, 0], [862.6, 473.4, 0], [1101.4, 476.1, 0], [1356.2, 500.2, 0],
-                                    [892.1, 545.8, 0], [660.1, 555.2, 0], [1088.0, 560.6, 0], [1314.7, 587.4, 0],
-                                    [1155.0, 642.4, 0], [732.5, 616.9, 0], [693.6, 689.3, 0], [1062.5, 689.3, 0],
-                                    [1313.3, 716.1, 0], [905.6, 732.2, 0], [1188.6, 732.2, 0], [717.8, 781.8, 0],
-                                    [1012.9, 843.5, 0], [741.9, 858.3, 0], [1309.3, 879.7, 0], [1148.3, 899.8, 0],
-                                    [1293.2, 956.1, 0], [1451.5, 978.9, 0], [925.7, 1011.1, 0], [1177.9, 1016.5, 0],
-                                    [690.9, 1036.6, 0], [1317.4, 1039.3, 0], [835.8, 1059.4, 0], [1059.8, 1121.1, 0],
-                                    [1576.2, 1209.6, 1]
+                                // 🎯 35 villes météo officielles réparties uniformément sur la France et la Corse
+                                var bureauCities = [
+                                    ["Paris", 48.85, 2.35],
+                                    ["Brest", 48.39, -4.48],
+                                    ["Rennes", 48.11, -1.67],
+                                    ["Cherbourg", 49.63, -1.62],
+                                    ["Rouen", 49.44, 1.10],
+                                    ["Lille", 50.62, 3.05],
+                                    ["Boulogne-sur-Mer", 50.726, 1.614],
+                                    ["Reims", 49.25, 4.03],
+                                    ["Metz", 49.11, 6.17],
+                                    ["Nantes", 47.21, -1.55],
+                                    ["Tours", 47.39, 0.68],
+                                    ["Auxerre", 47.79, 3.57],
+                                    ["Chaumont", 48.11, 5.14],
+                                    ["Strasbourg", 48.57, 7.75],
+                                    ["Bourges", 47.08, 2.39],
+                                    ["Belfort", 47.63, 6.86],
+                                    ["Limoges", 45.83, 1.26],
+                                    ["Vichy", 46.12, 3.42],
+                                    ["Lyon", 45.76, 4.83],
+                                    ["Pontarlier", 46.90, 6.35],
+                                    ["La Rochelle", 46.16, -1.15],
+                                    ["Bordeaux", 44.83, -0.57],
+                                    ["Biarritz", 43.48, -1.56],
+                                    ["Tarbes", 43.23, 0.07],
+                                    ["Toulouse", 43.60, 1.44],
+                                    ["Aurillac", 44.92, 2.44],
+                                    ["Montélimar", 44.55, 4.75],
+                                    ["Gap", 44.55, 6.07],
+                                    ["Perpignan", 42.69, 2.89],
+                                    ["Montpellier", 43.61, 3.87],
+                                    ["Marseille", 43.296, 5.381],
+                                    ["Amiens", 49.894, 2.295],
+                                    ["Nice", 43.71, 7.26],
+                                    ["Ajaccio", 41.92, 8.73],
+                                    ["Bastia", 42.69, 9.45],
+                                    ["Alençon", 48.43, 0.09],
+                                    ["Bourg-St-Maurice", 45.62, 6.77],
+                                    ["Chalon/Saône", 46.78, 4.85],
+                                    ["Agen", 44.20, 0.61]
                                 ];
 
-
-                                for (var bpi = 0; bpi < bureauPoints.length; bpi++) {
-                                    var pt = bureauPoints[bpi];
-                                    var cx = pt[0], cy = pt[1], isCorse = (pt[2] === 1);
-                                    var cxSource = isCorse ? (cx + 150) : cx;
-                                    var u = cxSource / 2200.0;
-                                    var v = cy / 1640.0;
+                                for (var bpi = 0; bpi < bureauCities.length; bpi++) {
+                                    var c = bureauCities[bpi];
+                                    var coords = projectCoords(c[1], c[2]);
+                                    var u = coords.u, v = coords.v;
                                     if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+
                                     var px = Math.round(u * (img.width - 1));
                                     var py = Math.round(v * (img.height - 1));
                                     var idx = (py * img.width + px) * 4;
@@ -2101,7 +2435,15 @@
                                     } else if (currentLayer.indexOf('graupel') !== -1) {
                                         if (val < 0.1) continue;
                                     }
-                                    valsData.push({ text: String(Math.round(val)), val: Math.round(val), cx: cx, cy: cy });
+
+                                    var cx = u * 2200;
+                                    var cy = v * 1640;
+                                    var isCorse = (c[2] > 8.4 && c[1] < 43.1);
+                                    if (isCorse) cx -= 150;
+
+                                    var tx = targetX + (cx - cropX) * (targetW / cropW);
+                                    var ty = targetY + (cy - cropY) * (targetH / cropH);
+                                    valsData.push({ text: String(Math.round(val)), val: Math.round(val), tx: tx, ty: ty });
                                 }
                             } else {
                                 // 🏙️ Mode 'villes' (33 grandes villes prioritaires avec anti-collision)
@@ -2161,25 +2503,21 @@
                                         if (val < 0.1) continue;
                                     }
                                     
-                                    var bw = (strVal.length >= 3 ? 175 : 145);
-                                    var bh = 92;
+                                    var tx = targetX + (cx - cropX) * (targetW / cropW);
+                                    var ty = targetY + (cy - cropY) * (targetH / cropH);
+                                    var bWidth = (strVal.length > 2 ? 80 : 68);
+                                    var bHeight = 60;
                                     
                                     var bestPos = null;
                                     for (var si = 0; si < shifts.length; si++) {
-                                        var nx = cx + shifts[si].dx;
-                                        var ny = cy + shifts[si].dy;
-                                        var rect = {
-                                            left: nx - bw / 2,
-                                            right: nx + bw / 2,
-                                            top: ny - bh / 2,
-                                            bottom: ny + bh / 2
-                                        };
+                                        var nx = tx + shifts[si].dx;
+                                        var ny = ty + shifts[si].dy;
+                                        var rect = { x1: nx - bWidth/2, y1: ny - bHeight/2, x2: nx + bWidth/2, y2: ny + bHeight/2 };
                                         
                                         var collides = false;
                                         for (var bi = 0; bi < placedBoxes.length; bi++) {
-                                            var pb = placedBoxes[bi];
-                                            if (rect.left < pb.right && rect.right > pb.left &&
-                                                rect.top < pb.bottom && rect.bottom > pb.top) {
+                                            var b = placedBoxes[bi];
+                                            if (rect.x1 < b.x2 + 8 && rect.x2 > b.x1 - 8 && rect.y1 < b.y2 + 8 && rect.y2 > b.y1 - 8) {
                                                 collides = true;
                                                 break;
                                             }
@@ -2193,7 +2531,7 @@
                                     if (!bestPos) continue;
                                     
                                     placedBoxes.push(bestPos.rect);
-                                    valsData.push({ text: strVal, val: Math.round(val), cx: bestPos.x, cy: bestPos.y });
+                                    valsData.push({ text: strVal, val: Math.round(val), tx: bestPos.x, ty: bestPos.y });
                                 }
                             }
 
@@ -2206,58 +2544,42 @@
                                 }
                             }
                             
-                            // To perfectly match the image, we draw all strokes first with shadow, 
-                            // then all fills without shadow so they don't overlap awkwardly.
+                            // 🎯 Rendu direct et haute définition sur ttCanvas (1080 × 1920)
+                            // Calibré au millimètre près sur l'image du bureau
+                            ttCtx.textAlign = 'center';
+                            ttCtx.textBaseline = 'middle';
+                            ttCtx.font = '900 68px "Arial Black", Arial, sans-serif';
+                            ttCtx.lineWidth = 14;
+                            ttCtx.strokeStyle = '#ffffff';
                             
-                            // Calibré au pixel près sur la carte de référence (1080×1920) :
-                            // hauteur totale badge ~94px, bordure blanche 8px, ombre décalée
-                            compCtx.font = '900 125px "Arial Black", Arial, sans-serif';
-                            compCtx.lineWidth = 22;
-                            compCtx.strokeStyle = '#ffffff';
-                            
-                            // Draw strokes with shadow
-                            compCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                            compCtx.shadowBlur = 8;
-                            compCtx.shadowOffsetX = 7;
-                            compCtx.shadowOffsetY = 7;
+                            // Passe 1 : Contours blancs + ombre portée noire
+                            ttCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                            ttCtx.shadowBlur = 6;
+                            ttCtx.shadowOffsetX = 5;
+                            ttCtx.shadowOffsetY = 5;
                             
                             for (var i = 0; i < valsData.length; i++) {
-                                compCtx.strokeText(valsData[i].text, valsData[i].cx, valsData[i].cy);
+                                ttCtx.strokeText(valsData[i].text, valsData[i].tx, valsData[i].ty);
                             }
                             
-                            // Draw fills without shadow
-                            compCtx.shadowColor = 'transparent';
-                            compCtx.shadowBlur = 0;
-                            compCtx.shadowOffsetX = 0;
-                            compCtx.shadowOffsetY = 0;
+                            // Passe 2 : Remplissage net (sans ombre)
+                            ttCtx.shadowColor = 'transparent';
+                            ttCtx.shadowBlur = 0;
+                            ttCtx.shadowOffsetX = 0;
+                            ttCtx.shadowOffsetY = 0;
                             
                              for (var i = 0; i < valsData.length; i++) {
                                 var v = valsData[i];
                                 if (isTemp) {
-                                    if (v.val === minVal) compCtx.fillStyle = '#0078D7'; // Bleu = Tn
-                                    else if (v.val === maxVal) compCtx.fillStyle = '#E81123'; // Rouge = Tx
-                                    else compCtx.fillStyle = '#000000';
+                                    if (v.val === minVal) ttCtx.fillStyle = '#0078D7'; // Bleu = Tn
+                                    else if (v.val === maxVal) ttCtx.fillStyle = '#E81123'; // Rouge = Tx
+                                    else ttCtx.fillStyle = '#000000';
                                 } else {
-                                    compCtx.fillStyle = '#ffffff'; // Blanc pour toutes les autres couches
+                                    ttCtx.fillStyle = '#ffffff'; // Blanc pour les autres couches
                                 }
-                                compCtx.fillText(v.text, v.cx, v.cy);
+                                ttCtx.fillText(v.text, v.tx, v.ty);
                             }
                         }
-
-                        // 4. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
-                        var ttCanvas = document.createElement('canvas');
-                        ttCanvas.width = 1080;
-                        ttCanvas.height = 1920;
-                        var ttCtx = ttCanvas.getContext('2d');
-                        ttCtx.clearRect(0, 0, 1080, 1920);
-
-                        var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
-                        var targetW = 1040;
-                        var targetH = Math.round(targetW * (cropH / cropW));
-                        var targetX = Math.round((1080 - targetW) / 2);
-                        var targetY = Math.round((1920 - targetH) / 2);
-
-                        ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
 
                         var dateStr = '';
                         if (step.valid_time) {
@@ -3907,6 +4229,630 @@
             vectorContext.globalAlpha = 1;
         }
 
+        var cachedFrontsData = null;
+        var cachedFrontsKey = null;
+
+        function chainFrontSegments(segments) {
+            function ptKey(p) {
+                return Math.round(p[0] * 100) + '_' + Math.round(p[1] * 100);
+            }
+            var adj = new Map();
+            for (var i = 0; i < segments.length; i++) {
+                var p1 = segments[i][0], p2 = segments[i][1];
+                var k1 = ptKey(p1), k2 = ptKey(p2);
+                if (!adj.has(k1)) adj.set(k1, []);
+                if (!adj.has(k2)) adj.set(k2, []);
+                adj.get(k1).push({ nextK: k2, fromP: p1, toP: p2 });
+                adj.get(k2).push({ nextK: k1, fromP: p2, toP: p1 });
+            }
+
+            var visitedEdges = new Set();
+            var polylines = [];
+
+            function makeEdgeId(k1, k2) {
+                return k1 < k2 ? (k1 + '#' + k2) : (k2 + '#' + k1);
+            }
+
+            var keys = Array.from(adj.keys());
+            for (var ki = 0; ki < keys.length; ki++) {
+                var startK = keys[ki];
+                var edges = adj.get(startK);
+                if (edges && edges.length === 1) {
+                    var currK = startK;
+                    var chain = [];
+                    while (true) {
+                        var cEdges = adj.get(currK);
+                        var nextEdge = null;
+                        if (cEdges) {
+                            for (var e = 0; e < cEdges.length; e++) {
+                                var edge = cEdges[e];
+                                var edgeId = makeEdgeId(currK, edge.nextK);
+                                if (!visitedEdges.has(edgeId)) {
+                                    visitedEdges.add(edgeId);
+                                    nextEdge = edge;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!nextEdge) break;
+                        if (chain.length === 0) chain.push(nextEdge.fromP);
+                        chain.push(nextEdge.toP);
+                        currK = nextEdge.nextK;
+                    }
+                    if (chain.length >= 2) polylines.push(chain);
+                }
+            }
+
+            for (var ki = 0; ki < keys.length; ki++) {
+                var startK = keys[ki];
+                var currK = startK;
+                var chain = [];
+                while (true) {
+                    var cEdges = adj.get(currK);
+                    var nextEdge = null;
+                    if (cEdges) {
+                        for (var e = 0; e < cEdges.length; e++) {
+                            var edge = cEdges[e];
+                            var edgeId = makeEdgeId(currK, edge.nextK);
+                            if (!visitedEdges.has(edgeId)) {
+                                visitedEdges.add(edgeId);
+                                nextEdge = edge;
+                                break;
+                            }
+                        }
+                    }
+                    if (!nextEdge) break;
+                    if (chain.length === 0) chain.push(nextEdge.fromP);
+                    chain.push(nextEdge.toP);
+                    currK = nextEdge.nextK;
+                }
+                if (chain.length >= 3) polylines.push(chain);
+            }
+
+            return polylines;
+        }
+
+        function chaikinFrontSmooth(poly, iterations) {
+            var p = poly;
+            for (var iter = 0; iter < iterations; iter++) {
+                if (p.length < 3) break;
+                var newPoly = [p[0]];
+                for (var i = 0; i < p.length - 1; i++) {
+                    var p0 = p[i], p1 = p[i + 1];
+                    newPoly.push([0.75 * p0[0] + 0.25 * p1[0], 0.75 * p0[1] + 0.25 * p1[1]]);
+                    newPoly.push([0.25 * p0[0] + 0.75 * p1[0], 0.25 * p0[1] + 0.75 * p1[1]]);
+                }
+                newPoly.push(p[p.length - 1]);
+                p = newPoly;
+            }
+            return p;
+        }
+
+        function computeTvFrontsData(img, layerKey, maskImg) {
+            if (!img || !img.width || !img.height) return null;
+            var key = (img.src || '') + '_' + layerKey + (maskImg ? '_m' : '');
+            if (cachedFrontsKey === key && cachedFrontsData) {
+                return cachedFrontsData;
+            }
+
+            var gw = 110, gh = 82;
+            var off = document.createElement('canvas');
+            off.width = gw;
+            off.height = gh;
+            var octx = off.getContext('2d', { willReadFrequently: true });
+            octx.drawImage(img, 0, 0, gw, gh);
+            var idata = octx.getImageData(0, 0, gw, gh).data;
+
+            // Masque métropole optionnel pour borner strictement le calcul au territoire français
+            var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+            var mData = null;
+            var realMask = maskImg || (isFranceDomain && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland ? tiktokAssets.maskMainland : null);
+            if (realMask && realMask.naturalWidth) {
+                var mOff = document.createElement('canvas');
+                mOff.width = gw;
+                mOff.height = gh;
+                var mCtx = mOff.getContext('2d', { willReadFrequently: true });
+                mCtx.drawImage(realMask, 0, 0, gw, gh);
+                mData = mCtx.getImageData(0, 0, gw, gh).data;
+            }
+
+            var field = new Float32Array(gw * gh);
+            var valid = new Uint8Array(gw * gh);
+            var minVal = Infinity, maxVal = -Infinity;
+
+            var isTemp = layerKey.indexOf('temperature') !== -1;
+            var isRain = layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precipitations') !== -1;
+            var isWind = layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafales') !== -1;
+            var layerPal = window.getLayerPalette ? window.getLayerPalette(layerKey) : null;
+
+            for (var y = 0; y < gh; y++) {
+                for (var x = 0; x < gw; x++) {
+                    var idx = (y * gw + x) * 4;
+                    var r = idata[idx], g = idata[idx + 1], b = idata[idx + 2], a = idata[idx + 3];
+                    var fidx = y * gw + x;
+                    var inMainland = mData ? (mData[idx + 3] > 60) : (a > 25);
+                    if (inMainland) {
+                        var v = null;
+                        if (a < 25) {
+                            if (layerPal && layerPal.transparent_below !== null && layerPal.transparent_below !== undefined) {
+                                v = Number(layerPal.transparent_below);
+                            } else {
+                                field[fidx] = 0;
+                                valid[fidx] = 0;
+                                continue;
+                            }
+                        } else if (layerPal && typeof valueFromColour === 'function') {
+                            v = valueFromColour(r, g, b, layerPal);
+                        }
+                        if (v === null || !Number.isFinite(v)) {
+                            v = (r * 0.9 + g * 0.7 - b * 0.4);
+                        }
+                        field[fidx] = v;
+                        valid[fidx] = 1;
+                        if (v < minVal) minVal = v;
+                        if (v > maxVal) maxVal = v;
+                    } else {
+                        field[fidx] = 0;
+                        valid[fidx] = 0;
+                    }
+                }
+            }
+
+            if (!Number.isFinite(minVal) || maxVal <= minVal) {
+                cachedFrontsKey = key;
+                cachedFrontsData = { lines: [], badges: [] };
+                return cachedFrontsData;
+            }
+
+            // Lissage gaussien macro (sigma ~ 2.2)
+            var smoothed = new Float32Array(gw * gh);
+            for (var y = 0; y < gh; y++) {
+                for (var x = 0; x < gw; x++) {
+                    var fidx = y * gw + x;
+                    if (!valid[fidx]) {
+                        smoothed[fidx] = field[fidx];
+                        continue;
+                    }
+                    var sum = 0, weight = 0;
+                    for (var dy = -2; dy <= 2; dy++) {
+                        var ny = y + dy;
+                        if (ny < 0 || ny >= gh) continue;
+                        for (var dx = -2; dx <= 2; dx++) {
+                            var nx = x + dx;
+                            if (nx < 0 || nx >= gw) continue;
+                            var nidx = ny * gw + nx;
+                            if (valid[nidx]) {
+                                var w = Math.exp(-(dx * dx + dy * dy) / (2 * 2.2 * 2.2));
+                                sum += field[nidx] * w;
+                                weight += w;
+                            }
+                        }
+                    }
+                    smoothed[fidx] = weight > 0 ? (sum / weight) : field[fidx];
+                }
+            }
+
+            // Collecte des valeurs valides et calcul des percentiles robustes (3% et 97%)
+            var validVals = [];
+            for (var fidx = 0; fidx < gw * gh; fidx++) {
+                if (valid[fidx]) validVals.push(field[fidx]);
+            }
+            if (validVals.length < 20) {
+                cachedFrontsKey = key;
+                cachedFrontsData = { lines: [], badges: [] };
+                return cachedFrontsData;
+            }
+            validVals.sort(function (a, b) { return a - b; });
+            var pMin = validVals[Math.floor(validVals.length * 0.03)];
+            var pMax = validVals[Math.floor(validVals.length * 0.97)];
+            if (pMax <= pMin) pMax = pMin + 1;
+
+            // Paliers TV réguliers couvrant l'échelle météorologique réelle
+            var numBands = 5;
+            var bandStep = (pMax - pMin) / numBands;
+            var thresholds = [];
+            for (var i = 1; i < numBands; i++) {
+                thresholds.push(pMin + i * bandStep);
+            }
+
+            // Définition des 5 zones thermiques intégrales (aucune zone exclue)
+            var bands = [];
+            bands.push({ low: -Infinity, high: thresholds[0], type: 'min' });
+            for (var i = 0; i < thresholds.length - 1; i++) {
+                bands.push({ low: thresholds[i], high: thresholds[i + 1], type: 'mid' });
+            }
+            bands.push({ low: thresholds[thresholds.length - 1], high: Infinity, type: 'max' });
+
+            // Cartouches TV universels par composantes connexes (îlots, péninsules, plaines, vallées)
+            var badges = [];
+            var dist = new Float32Array(gw * gh);
+            var compLabels = new Int32Array(gw * gh);
+
+            for (var bi = 0; bi < bands.length; bi++) {
+                var band = bands[bi];
+                var tLow = band.low;
+                var tHigh = band.high;
+
+                // 1. Détection des composantes connexes (BFS flood-fill)
+                for (var f = 0; f < gw * gh; f++) compLabels[f] = 0;
+                var nextLbl = 1;
+                var components = [];
+
+                for (var y = 0; y < gh; y++) {
+                    for (var x = 0; x < gw; x++) {
+                        var idx = y * gw + x;
+                        if (valid[idx] && smoothed[idx] >= tLow && smoothed[idx] < tHigh && compLabels[idx] === 0) {
+                            var curLbl = nextLbl++;
+                            var q = [idx];
+                            compLabels[idx] = curLbl;
+                            var qHead = 0;
+                            while (qHead < q.length) {
+                                var cidx = q[qHead++];
+                                var cx = cidx % gw;
+                                var cy = Math.floor(cidx / gw);
+                                if (cx > 0) { var n = cidx - 1; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
+                                if (cx < gw - 1) { var n = cidx + 1; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
+                                if (cy > 0) { var n = cidx - gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
+                                if (cy < gh - 1) { var n = cidx + gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
+                            }
+                            if (q.length >= 10) {
+                                components.push({ label: curLbl, size: q.length });
+                            }
+                        }
+                    }
+                }
+
+                // 2. Pour chaque composante significative, trouver son pôle d'inaccessibilité (distance transform)
+                for (var ci = 0; ci < components.length; ci++) {
+                    var compInfo = components[ci];
+                    var curLbl = compInfo.label;
+                    var cSize = compInfo.size;
+
+                    // Initialiser le masque pour cette composante
+                    for (var f = 0; f < gw * gh; f++) {
+                        dist[f] = (compLabels[f] === curLbl) ? 9999 : 0;
+                    }
+
+                    // 2 passes distance transform
+                    for (var y = 0; y < gh; y++) {
+                        for (var x = 0; x < gw; x++) {
+                            var idx = y * gw + x;
+                            if (dist[idx] > 0) {
+                                var d = dist[idx];
+                                if (x > 0) d = Math.min(d, dist[idx - 1] + 1);
+                                if (y > 0) d = Math.min(d, dist[(y - 1) * gw + x] + 1);
+                                if (x > 0 && y > 0) d = Math.min(d, dist[(y - 1) * gw + (x - 1)] + 1.414);
+                                if (x < gw - 1 && y > 0) d = Math.min(d, dist[(y - 1) * gw + (x + 1)] + 1.414);
+                                dist[idx] = d;
+                            }
+                        }
+                    }
+                    for (var y = gh - 1; y >= 0; y--) {
+                        for (var x = gw - 1; x >= 0; x--) {
+                            var idx = y * gw + x;
+                            if (dist[idx] > 0) {
+                                var d = dist[idx];
+                                if (x < gw - 1) d = Math.min(d, dist[idx + 1] + 1);
+                                if (y < gh - 1) d = Math.min(d, dist[(y + 1) * gw + x] + 1);
+                                if (x < gw - 1 && y < gh - 1) d = Math.min(d, dist[(y + 1) * gw + (x + 1)] + 1.414);
+                                if (x > 0 && y < gh - 1) d = Math.min(d, dist[(y + 1) * gw + (x - 1)] + 1.414);
+                                dist[idx] = d;
+                            }
+                        }
+                    }
+
+                    // Trouver les centres profonds (plusieurs pôles pour les lobes étendus)
+                    var maxPoles = Math.max(2, Math.min(5, Math.round(cSize / 80)));
+                    for (var pi = 0; pi < maxPoles; pi++) {
+                        var maxD = 0, maxIdx = -1;
+                        for (var f = 0; f < gw * gh; f++) {
+                            if (compLabels[f] === curLbl && dist[f] > maxD) {
+                                maxD = dist[f];
+                                maxIdx = f;
+                            }
+                        }
+                        if (maxD < 0.85 || maxIdx === -1) break;
+
+                        var px = maxIdx % gw;
+                        var py = Math.floor(maxIdx / gw);
+
+                        // Valeur représentative locale
+                        var sampleVals = [];
+                        for (var dy = -2; dy <= 2; dy++) {
+                            var ny = py + dy;
+                            if (ny < 0 || ny >= gh) continue;
+                            for (var dx = -2; dx <= 2; dx++) {
+                                var nx = px + dx;
+                                if (nx < 0 || nx >= gw) continue;
+                                var nidx = ny * gw + nx;
+                                if (compLabels[nidx] === curLbl) sampleVals.push(smoothed[nidx]);
+                            }
+                        }
+                        sampleVals.sort(function (a, b) { return a - b; });
+                        var medVal = sampleVals.length ? sampleVals[Math.floor(sampleVals.length / 2)] : smoothed[maxIdx];
+
+                        var label = '';
+                        if (isTemp) {
+                            var stepSize = 2;
+                            var v0 = Math.floor(medVal / stepSize) * stepSize;
+                            var v1 = v0 + stepSize;
+                            if (band.type === 'min') label = '<= ' + v1 + ' °C';
+                            else if (band.type === 'max') label = '> ' + v0 + ' °C';
+                            else label = v0 + ' à ' + v1 + ' °C';
+                        } else if (isRain) {
+                            var r0 = Math.max(0, Math.floor(medVal / 10) * 10);
+                            var r1 = r0 + 10;
+                            label = (medVal < 1 ? '0 mm' : (r0 === 0 ? '< 10 mm' : (r0 + ' à ' + r1 + ' mm')));
+                        } else if (isWind) {
+                            var w0 = Math.floor(medVal / 20) * 20;
+                            var w1 = w0 + 20;
+                            label = w0 + ' à ' + w1 + ' km/h';
+                        } else if (layerKey.indexOf('neige') !== -1) {
+                            var n0 = Math.floor(medVal / 5) * 5;
+                            var n1 = n0 + 5;
+                            label = (n0 === 0 ? '< 5' : (n0 + ' à ' + n1)) + ' cm';
+                        } else if (layerKey.indexOf('vagues') !== -1) {
+                            var wg0 = Math.floor(medVal);
+                            var wg1 = wg0 + 1;
+                            label = wg0 + ' à ' + wg1 + ' m';
+                        } else {
+                            var uName = (layerPal && layerPal.unit) || '';
+                            if (uName) {
+                                label = (Math.abs(medVal) < 10 && layerPal.decimals > 0 ? medVal.toFixed(1) : Math.round(medVal)) + ' ' + uName;
+                            } else {
+                                label = Math.round(medVal) + '°';
+                            }
+                        }
+
+                        var isBretagne = isFranceDomain && (px < 30 && py >= 20 && py <= 36);
+
+                        badges.push({
+                            u: px / (gw - 1),
+                            v: py / (gh - 1),
+                            label: label,
+                            clearance: maxD,
+                            isBretagne: isBretagne
+                        });
+
+                        // Rayon d'exclusion (10 pixels) pour laisser respirer les péninsules adjacentes
+                        for (var ey = Math.max(0, py - 10); ey <= Math.min(gh - 1, py + 10); ey++) {
+                            for (var ex = Math.max(0, px - 10); ex <= Math.min(gw - 1, px + 10); ex++) {
+                                var edx = ex - px, edy = ey - py;
+                                if (edx * edx + edy * edy <= 100) {
+                                    dist[ey * gw + ex] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Éliminer les chevauchements en garantissant impérativement le cartouche Ouest/Bretagne s'il existe
+            var bretagneBadges = isFranceDomain ? badges.filter(function (b) { return b.isBretagne; }) : [];
+            var otherBadges = isFranceDomain ? badges.filter(function (b) { return !b.isBretagne; }) : badges;
+            var filteredBadges = [];
+            if (bretagneBadges.length) {
+                bretagneBadges.sort(function (a, b) { return b.clearance - a.clearance; });
+                filteredBadges.push(bretagneBadges[0]);
+            }
+            otherBadges.sort(function (a, b) { return b.clearance - a.clearance; });
+            for (var bi = 0; bi < otherBadges.length; bi++) {
+                var candidate = otherBadges[bi];
+                var tooClose = false;
+                for (var fi = 0; fi < filteredBadges.length; fi++) {
+                    var du = (candidate.u - filteredBadges[fi].u) * gw;
+                    var dv = (candidate.v - filteredBadges[fi].v) * gh;
+                    if (du * du + dv * dv < 100) { // ~10 pixels de grille
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (!tooClose) filteredBadges.push(candidate);
+            }
+            badges = filteredBadges.slice(0, 8);
+
+            function interpolate(v1, v2, th) {
+                if (Math.abs(v2 - v1) < 1e-6) return 0.5;
+                return Math.max(0.0, Math.min(1.0, (th - v1) / (v2 - v1)));
+            }
+
+            var tvLines = [];
+            for (var ti = 0; ti < thresholds.length; ti++) {
+                var lv = thresholds[ti];
+                var segments = [];
+                for (var y = 0; y < gh - 1; y++) {
+                    for (var x = 0; x < gw - 1; x++) {
+                        var i0 = y * gw + x;
+                        var i1 = y * gw + (x + 1);
+                        var i2 = (y + 1) * gw + (x + 1);
+                        var i3 = (y + 1) * gw + x;
+                        if (!valid[i0] || !valid[i1] || !valid[i2] || !valid[i3]) continue;
+
+                        var v_tl = smoothed[i0];
+                        var v_tr = smoothed[i1];
+                        var v_br = smoothed[i2];
+                        var v_bl = smoothed[i3];
+
+                        var caseIdx = 0;
+                        if (v_tl >= lv) caseIdx |= 8;
+                        if (v_tr >= lv) caseIdx |= 4;
+                        if (v_br >= lv) caseIdx |= 2;
+                        if (v_bl >= lv) caseIdx |= 1;
+
+                        if (caseIdx === 0 || caseIdx === 15) continue;
+
+                        var t_pt = [x + interpolate(v_tl, v_tr, lv), y];
+                        var r_pt = [x + 1, y + interpolate(v_tr, v_br, lv)];
+                        var b_pt = [x + interpolate(v_bl, v_br, lv), y + 1];
+                        var l_pt = [x, y + interpolate(v_tl, v_bl, lv)];
+
+                        if (caseIdx === 1 || caseIdx === 14) segments.push([l_pt, b_pt]);
+                        else if (caseIdx === 2 || caseIdx === 13) segments.push([b_pt, r_pt]);
+                        else if (caseIdx === 3 || caseIdx === 12) segments.push([l_pt, r_pt]);
+                        else if (caseIdx === 4 || caseIdx === 11) segments.push([t_pt, r_pt]);
+                        else if (caseIdx === 5) { segments.push([l_pt, t_pt]); segments.push([b_pt, r_pt]); }
+                        else if (caseIdx === 6 || caseIdx === 9) segments.push([t_pt, b_pt]);
+                        else if (caseIdx === 7 || caseIdx === 8) segments.push([l_pt, t_pt]);
+                        else if (caseIdx === 10) { segments.push([l_pt, b_pt]); segments.push([t_pt, r_pt]); }
+                    }
+                }
+
+                var polys = chainFrontSegments(segments);
+                for (var pi = 0; pi < polys.length; pi++) {
+                    var poly = polys[pi];
+                    if (poly.length < 16) continue;
+                    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                    for (var ptI = 0; ptI < poly.length; ptI++) {
+                        var pt = poly[ptI];
+                        if (pt[0] < minX) minX = pt[0];
+                        if (pt[0] > maxX) maxX = pt[0];
+                        if (pt[1] < minY) minY = pt[1];
+                        if (pt[1] > maxY) maxY = pt[1];
+                    }
+                    if (Math.max(maxX - minX, maxY - minY) < 14) continue;
+                    var smoothPoly = chaikinFrontSmooth(poly, 3);
+                    var normPts = [];
+                    for (var si = 0; si < smoothPoly.length; si++) {
+                        normPts.push([
+                            smoothPoly[si][0] / (gw - 1),
+                            smoothPoly[si][1] / (gh - 1)
+                        ]);
+                    }
+                    tvLines.push(normPts);
+                }
+            }
+
+            cachedFrontsKey = key;
+            cachedFrontsData = { lines: tvLines, badges: badges };
+            return cachedFrontsData;
+        }
+
+        function drawTvFronts(width, height, pixelRatio) {
+            if (!frontsCanvas) return;
+            resizeCanvas(frontsCanvas, width, height, pixelRatio);
+            if (!frontsContext) return;
+            frontsContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+            frontsContext.clearRect(0, 0, width, height);
+            if (!frontsVisible || !currentWeatherImage) return;
+
+            var isFranceDom = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+            var fMask = (isFranceDom && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
+            var frontsData = computeTvFrontsData(currentWeatherImage, currentLayer, fMask);
+            if (!frontsData || (!frontsData.lines.length && !frontsData.badges.length)) return;
+
+            var mapRect = computeMapRect(width, height);
+            var natH = isWorldDomain() ? 1320.0 : 1640.0;
+            var horizontalScale = mapRect.w / 2200.0;
+            var verticalScale = mapRect.h / natH;
+
+            frontsContext.save();
+            frontsContext.beginPath();
+            frontsContext.rect(mapRect.x, mapRect.y, mapRect.w, mapRect.h);
+            frontsContext.clip();
+
+            frontsContext.setTransform(
+                pixelRatio * horizontalScale,
+                0,
+                0,
+                pixelRatio * verticalScale,
+                pixelRatio * mapRect.x,
+                pixelRatio * mapRect.y
+            );
+
+            // 1. Tracé des lignes blanches TV BIEN ÉPAISSES
+            frontsContext.lineCap = 'round';
+            frontsContext.lineJoin = 'round';
+            frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            frontsContext.shadowBlur = 12 / horizontalScale;
+            frontsContext.shadowOffsetX = 3.5 / horizontalScale;
+            frontsContext.shadowOffsetY = 3.5 / horizontalScale;
+            frontsContext.strokeStyle = '#ffffff';
+            frontsContext.lineWidth = 7.5 / horizontalScale;
+
+            for (var li = 0; li < frontsData.lines.length; li++) {
+                var line = frontsData.lines[li];
+                if (line.length < 2) continue;
+                frontsContext.beginPath();
+                frontsContext.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
+                for (var pi = 1; pi < line.length; pi++) {
+                    frontsContext.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
+                }
+                frontsContext.stroke();
+            }
+
+            // 2. Si les valeurs numériques ponctuelles ne sont PAS cochées, tracer les cartouches de plages TV
+            if (!valuesVisible && frontsData.badges.length) {
+                frontsContext.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                frontsContext.shadowBlur = 10 / horizontalScale;
+                frontsContext.shadowOffsetX = 3.5 / horizontalScale;
+                frontsContext.shadowOffsetY = 3.5 / horizontalScale;
+
+                var fontSize = Math.round(30 / horizontalScale);
+                frontsContext.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                frontsContext.textAlign = 'center';
+                frontsContext.textBaseline = 'middle';
+
+                var allBadges = frontsData.badges.slice();
+                // Ajout cartouche Corse propre si domaine France
+                if (!isEuropeDomain() && !isWorldDomain() && window.getLayerPalette && typeof valueFromColour === 'function' && samplerContext) {
+                    try {
+                        var cPix = samplerContext.getImageData(1760, 1334, 1, 1).data;
+                        if (cPix[3] > 20) {
+                            var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
+                            if (cVal !== null && Number.isFinite(cVal)) {
+                                var cLabel = '';
+                                if (currentLayer.indexOf('temperature') !== -1) {
+                                    var c0 = Math.floor(cVal / 2) * 2;
+                                    var c1 = c0 + 2;
+                                    cLabel = c0 + ' à ' + c1 + ' °C';
+                                } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
+                                    cLabel = Math.round(cVal) + ' mm';
+                                } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                    cLabel = Math.round(cVal) + ' km/h';
+                                } else {
+                                    var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                    cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                }
+                                allBadges.push({
+                                    u: 1760 / 2200.0,
+                                    v: 1334 / natH,
+                                    label: cLabel
+                                });
+                            }
+                        }
+                    } catch (eC) {}
+                }
+
+                for (var bi = 0; bi < allBadges.length; bi++) {
+                    var badge = allBadges[bi];
+                    var bx = badge.u * 2200.0;
+                    var by = badge.v * natH;
+                    var text = badge.label;
+                    var tw = frontsContext.measureText(text).width;
+                    var padX = 16 / horizontalScale;
+                    var padY = 10 / horizontalScale;
+                    var bw = tw + padX * 2;
+                    var bh = fontSize + padY * 2;
+                    var rad = 10 / horizontalScale;
+
+                    frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
+                    frontsContext.strokeStyle = '#ffffff';
+                    frontsContext.lineWidth = 2.5 / horizontalScale;
+
+                    frontsContext.beginPath();
+                    if (frontsContext.roundRect) frontsContext.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                    else frontsContext.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                    frontsContext.fill();
+                    frontsContext.stroke();
+
+                    frontsContext.fillStyle = '#ffffff';
+                    frontsContext.fillText(text, bx, by);
+                }
+            }
+
+            frontsContext.restore();
+        }
+
         function scheduleRender() {
             if (renderFrame !== null) {
                 return;
@@ -3920,6 +4866,7 @@
                 }
                 var pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
                 drawWeather(width, height, pixelRatio);
+                drawTvFronts(width, height, pixelRatio);
                 drawVectors(width, height, pixelRatio);
                 drawValues(width, height, pixelRatio);
                 drawLabels(width, height, pixelRatio);
@@ -5203,6 +6150,20 @@
                 toggleCyclonesButton.setAttribute('aria-pressed', cyclonesVisible ? 'true' : 'false');
                 checkCycloneAnimation();
                 scheduleRender();
+            });
+        }
+        if (toggleFrontsButton) {
+            toggleFrontsButton.addEventListener('click', function () {
+                frontsVisible = !frontsVisible;
+                toggleFrontsButton.classList.toggle('is-active', frontsVisible);
+                toggleFrontsButton.setAttribute('aria-pressed', frontsVisible ? 'true' : 'false');
+                if (frontsVisible && (!tiktokAssets || !tiktokAssets.maskMainland)) {
+                    loadTiktokAssets().then(function() {
+                        scheduleRender();
+                    });
+                } else {
+                    scheduleRender();
+                }
             });
         }
         if (btnToggleCycloneCone) {
