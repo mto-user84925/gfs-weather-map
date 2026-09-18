@@ -1498,7 +1498,7 @@
                             } catch (eCorseExp) {}
                         }
 
-                        var bFontSize = hScale < 1.35 ? 28 : 32;
+                        var bFontSize = hScale < 1.35 ? 36 : 40;
                         context.save();
                         context.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                         context.textAlign = 'center';
@@ -1516,11 +1516,11 @@
                             var curFontSize = b.isCorse ? Math.round(bFontSize * 0.9) : bFontSize;
                             context.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                             var tw = context.measureText(text).width;
-                            var padX = 16;
-                            var padY = 10;
+                            var padX = 20;
+                            var padY = 12;
                             var bw = tw + padX * 2;
                             var bh = curFontSize + padY * 2;
-                            var rad = 12;
+                            var rad = 14;
 
                             // Protection anti-collision avec le titre, le logo ou la légende
                             var bRect = { left: bx - bw / 2 - 6, right: bx + bw / 2 + 6, top: by - bh / 2 - 6, bottom: by + bh / 2 + 6 };
@@ -2270,7 +2270,7 @@
                                     compCtx.shadowBlur = 12;
                                     compCtx.shadowOffsetX = 4;
                                     compCtx.shadowOffsetY = 4;
-                                    var fontSize = 38;
+                                    var fontSize = 46;
                                     compCtx.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     compCtx.textAlign = 'center';
                                     compCtx.textBaseline = 'middle';
@@ -2314,14 +2314,14 @@
                                         var bx = badge.u * 2200;
                                         var by = badge.v * 1640;
                                         var text = badge.label;
-                                        var curFontSize = badge.isCorse ? 32 : fontSize;
+                                        var curFontSize = badge.isCorse ? 38 : fontSize;
                                         compCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                         var tw = compCtx.measureText(text).width;
-                                        var padX = badge.isCorse ? 12 : 16;
-                                        var padY = badge.isCorse ? 8 : 10;
+                                        var padX = badge.isCorse ? 16 : 22;
+                                        var padY = badge.isCorse ? 10 : 14;
                                         var bw = tw + padX * 2;
                                         var bh = curFontSize + padY * 2;
-                                        var rad = badge.isCorse ? 10 : 12;
+                                        var rad = badge.isCorse ? 12 : 14;
 
                                         compCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
                                         compCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
@@ -4707,13 +4707,12 @@
                             }
                         }
                         sampleVals.sort(function (a, b) { return a - b; });
-                        // ponytail: 65ème percentile pour remonter les valeurs des cartouches et refléter fidèlement les maxis de la masse d'air
-                        var medVal = sampleVals.length ? sampleVals[Math.floor(sampleVals.length * 0.65)] : smoothed[maxIdx];
+                        var medVal = sampleVals.length ? sampleVals[Math.floor(sampleVals.length / 2)] : smoothed[maxIdx];
 
                         var label = '';
                         if (isTemp) {
                             var stepSize = 2;
-                            var v0 = Math.floor((medVal + 0.3) / stepSize) * stepSize;
+                            var v0 = Math.floor(medVal / stepSize) * stepSize;
                             var v1 = v0 + stepSize;
                             if (band.type === 'min') label = '<= ' + v1 + ' °C';
                             else if (band.type === 'max') label = '> ' + v0 + ' °C';
@@ -4933,7 +4932,7 @@
                 frontsContext.shadowOffsetX = 3.5 / zoomFactor;
                 frontsContext.shadowOffsetY = 3.5 / zoomFactor;
 
-                var fontSize = Math.max(10, Math.round(30 / zoomFactor));
+                var fontSize = Math.max(12, Math.round(38 / zoomFactor));
                 frontsContext.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 frontsContext.textAlign = 'center';
                 frontsContext.textBaseline = 'middle';
@@ -4942,7 +4941,7 @@
                 // Ajout cartouche Corse propre si domaine France
                 if (!isEuropeDomain() && !isWorldDomain() && window.getLayerPalette && typeof valueFromColour === 'function' && samplerContext) {
                     try {
-                        var cPix = samplerContext.getImageData(1760, 1334, 1, 1).data;
+                        var cPix = samplerContext.getImageData(1760, 1310, 1, 1).data;
                         if (cPix[3] > 20) {
                             var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
                             if (cVal !== null && Number.isFinite(cVal)) {
@@ -4975,11 +4974,11 @@
                     var by = badge.v * natH;
                     var text = badge.label;
                     var tw = frontsContext.measureText(text).width;
-                    var padX = 16 / zoomFactor;
-                    var padY = 10 / zoomFactor;
+                    var padX = 18 / zoomFactor;
+                    var padY = 11 / zoomFactor;
                     var bw = tw + padX * 2;
                     var bh = fontSize + padY * 2;
-                    var rad = 10 / zoomFactor;
+                    var rad = 12 / zoomFactor;
 
                     frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
                     frontsContext.strokeStyle = '#ffffff';
