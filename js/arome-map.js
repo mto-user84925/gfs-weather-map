@@ -4760,14 +4760,16 @@
             );
 
             // 1. Tracé des lignes blanches TV BIEN ÉPAISSES
+            // ponytail: on travaille dans l'espace natif 2200px (transform déjà appliqué)
+            // donc toutes les valeurs sont fixes comme dans le PNG HD
             frontsContext.lineCap = 'round';
             frontsContext.lineJoin = 'round';
             frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
-            frontsContext.shadowBlur = 12 / horizontalScale;
-            frontsContext.shadowOffsetX = 3.5 / horizontalScale;
-            frontsContext.shadowOffsetY = 3.5 / horizontalScale;
+            frontsContext.shadowBlur = 12;
+            frontsContext.shadowOffsetX = 3.5;
+            frontsContext.shadowOffsetY = 3.5;
             frontsContext.strokeStyle = '#ffffff';
-            frontsContext.lineWidth = 7.5 / horizontalScale;
+            frontsContext.lineWidth = 7.5;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
@@ -4783,11 +4785,11 @@
             // 2. Tracer les cartouches de plages TV au cœur de chaque zone
             if (frontsData.badges.length) {
                 frontsContext.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                frontsContext.shadowBlur = 10 / horizontalScale;
-                frontsContext.shadowOffsetX = 3.5 / horizontalScale;
-                frontsContext.shadowOffsetY = 3.5 / horizontalScale;
+                frontsContext.shadowBlur = 10;
+                frontsContext.shadowOffsetX = 3.5;
+                frontsContext.shadowOffsetY = 3.5;
 
-                var fontSize = Math.round(30 / horizontalScale);
+                var fontSize = 30;
                 frontsContext.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 frontsContext.textAlign = 'center';
                 frontsContext.textBaseline = 'middle';
@@ -4829,15 +4831,15 @@
                     var by = badge.v * natH;
                     var text = badge.label;
                     var tw = frontsContext.measureText(text).width;
-                    var padX = 16 / horizontalScale;
-                    var padY = 10 / horizontalScale;
+                    var padX = 16;
+                    var padY = 10;
                     var bw = tw + padX * 2;
                     var bh = fontSize + padY * 2;
-                    var rad = 10 / horizontalScale;
+                    var rad = 10;
 
                     frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
                     frontsContext.strokeStyle = '#ffffff';
-                    frontsContext.lineWidth = 2.5 / horizontalScale;
+                    frontsContext.lineWidth = 2.5;
 
                     frontsContext.beginPath();
                     if (frontsContext.roundRect) frontsContext.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
