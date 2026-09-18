@@ -2059,106 +2059,146 @@
                             var imgData = samplerCtx.getImageData(0, 0, img.width, img.height).data;
                             var layerPal = window.getLayerPalette(currentLayer);
                             
-                            var tvCities = [
-                                "Paris", "Lille", "Brest", "Strasbourg", "Lyon", "Bordeaux",
-                                "Marseille", "Nice", "Toulouse", "Nantes", "Rennes", "Clermont-Ferrand",
-                                "Dijon", "Montpellier", "Perpignan", "Biarritz", "Limoges", "Tours",
-                                "Reims", "Ajaccio", "Cherbourg-en-Cotentin", "Caen", "Amiens",
-                                "Bourges", "Poitiers", "La Rochelle", "Aurillac", "Metz", "Bastia",
-                                "Rouen", "Besançon", "Pau", "Grenoble"
-                            ];
-                            
-                            var targetPlaces = [];
-                            for (var tvi = 0; tvi < tvCities.length; tvi++) {
-                                var cName = tvCities[tvi];
-                                for (var pi = 0; pi < places.length; pi++) {
-                                    if (places[pi][0] === cName) {
-                                        targetPlaces.push(places[pi]);
-                                        break;
-                                    }
-                                }
-                            }
+                            var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
                             var isTemp = currentLayer.indexOf('temperature') !== -1;
-                            
-                            compCtx.textAlign = 'center';
-                            compCtx.textBaseline = 'middle';
-                            compCtx.lineJoin = 'round';
-                            
                             var valsData = [];
-                            var placedBoxes = [];
-                            
-                            var shifts = [
-                                { dx: 0, dy: 0 },
-                                { dx: 0, dy: -20 }, { dx: 0, dy: 20 }, { dx: -22, dy: 0 }, { dx: 22, dy: 0 },
-                                { dx: -20, dy: -20 }, { dx: 20, dy: -20 }, { dx: -20, dy: 20 }, { dx: 20, dy: 20 }
-                            ];
-                            
-                            for (var pi = 0; pi < targetPlaces.length; pi++) {
-                                var place = targetPlaces[pi];
-                                var coords = projectCoords(Number(place[2]), Number(place[3]));
-                                var u = coords.u, v = coords.v;
-                                if (u < 0 || u > 1 || v < 0 || v > 1) continue;
-                                
-                                var px = Math.round(u * (img.width - 1));
-                                var py = Math.round(v * (img.height - 1));
-                                var idx = (py * img.width + px) * 4;
-                                var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
-                                
-                                var val = null;
-                                if (a > 12) val = valueFromColour(r, g, b, layerPal);
-                                if (val === null || !Number.isFinite(val)) continue;
-                                
-                                var cx = u * 2200;
-                                var cy = v * 1640;
-                                var isCorse = Number(place[3]) > 8.4 && Number(place[2]) < 43.1;
-                                if (isCorse) cx -= 150;
-                                
-                                var strVal = String(Math.round(val));
-                                if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
-                                    if (val < 0.2) continue;
-                                } else if (currentLayer.indexOf('mucape') !== -1) {
-                                    if (val < 40) continue;
-                                } else if (currentLayer.indexOf('graupel') !== -1) {
-                                    if (val < 0.1) continue;
+
+                            if (layoutMode === 'bureau') {
+                                // 🎯 54 points exactement répartis d'après la carte de référence du bureau
+                                var bureauPoints = [
+                                    [1000.8, 114.0, 0], [1090.7, 114.0, 0], [987.4, 209.2, 0], [656.1, 244.1, 0],
+                                    [886.8, 269.6, 0], [1077.2, 278.9, 0], [1168.5, 288.3, 0], [1316.0, 297.7, 0],
+                                    [1439.4, 299.1, 0], [929.7, 342.0, 0], [1027.6, 343.3, 0], [1451.5, 359.4, 0],
+                                    [851.9, 396.9, 0], [411.9, 398.3, 0], [768.7, 399.6, 0], [1234.2, 430.5, 0],
+                                    [650.7, 439.9, 0], [1416.6, 439.9, 0], [751.3, 472.0, 0], [861.3, 473.4, 0],
+                                    [1101.4, 476.1, 0], [1385.8, 493.5, 0], [1266.4, 516.3, 0], [854.6, 532.4, 0],
+                                    [1139.0, 551.2, 0], [660.1, 553.8, 0], [1002.1, 569.9, 0], [1346.9, 580.7, 0],
+                                    [1218.1, 602.1, 0], [732.5, 618.2, 0], [1108.1, 619.6, 0], [627.9, 622.2, 0],
+                                    [1167.1, 675.9, 0], [1062.5, 689.3, 0], [695.0, 694.7, 0], [905.6, 730.9, 0],
+                                    [1220.8, 730.9, 0], [728.5, 773.8, 0], [1012.9, 843.5, 0], [743.3, 856.9, 0],
+                                    [1338.8, 877.0, 0], [1218.1, 882.4, 0], [1112.1, 917.3, 0], [674.8, 944.1, 0],
+                                    [1451.5, 977.6, 0], [1143.0, 1005.8, 0], [925.7, 1009.8, 0], [653.4, 1025.9, 0],
+                                    [1282.5, 1037.9, 0], [1377.7, 1046.0, 0], [802.3, 1058.1, 0], [1059.8, 1121.1, 0],
+                                    [1576.2, 1133.2, 1], [1576.2, 1208.3, 1]
+                                ];
+
+                                for (var bpi = 0; bpi < bureauPoints.length; bpi++) {
+                                    var pt = bureauPoints[bpi];
+                                    var cx = pt[0], cy = pt[1], isCorse = (pt[2] === 1);
+                                    var cxSource = isCorse ? (cx + 150) : cx;
+                                    var u = cxSource / 2200.0;
+                                    var v = cy / 1640.0;
+                                    if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+                                    var px = Math.round(u * (img.width - 1));
+                                    var py = Math.round(v * (img.height - 1));
+                                    var idx = (py * img.width + px) * 4;
+                                    var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                                    var val = null;
+                                    if (a > 12) val = valueFromColour(r, g, b, layerPal);
+                                    if (val === null || !Number.isFinite(val)) continue;
+                                    if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
+                                        if (val < 0.2) continue;
+                                    } else if (currentLayer.indexOf('mucape') !== -1) {
+                                        if (val < 40) continue;
+                                    } else if (currentLayer.indexOf('graupel') !== -1) {
+                                        if (val < 0.1) continue;
+                                    }
+                                    valsData.push({ text: String(Math.round(val)), val: Math.round(val), cx: cx, cy: cy });
                                 }
+                            } else {
+                                // 🏙️ Mode 'villes' (33 grandes villes prioritaires avec anti-collision)
+                                var tvCities = [
+                                    "Paris", "Lille", "Brest", "Strasbourg", "Lyon", "Bordeaux",
+                                    "Marseille", "Nice", "Toulouse", "Nantes", "Rennes", "Clermont-Ferrand",
+                                    "Dijon", "Montpellier", "Perpignan", "Biarritz", "Limoges", "Tours",
+                                    "Reims", "Ajaccio", "Cherbourg-en-Cotentin", "Caen", "Amiens",
+                                    "Bourges", "Poitiers", "La Rochelle", "Aurillac", "Metz", "Bastia",
+                                    "Rouen", "Besançon", "Pau", "Grenoble"
+                                ];
                                 
-                                // Anti-chevauchement strict : encombrement d'un badge ~145x92 px
-                                var bw = (strVal.length >= 3 ? 175 : 145);
-                                var bh = 92;
-                                
-                                var bestPos = null;
-                                for (var si = 0; si < shifts.length; si++) {
-                                    var nx = cx + shifts[si].dx;
-                                    var ny = cy + shifts[si].dy;
-                                    var rect = {
-                                        left: nx - bw / 2,
-                                        right: nx + bw / 2,
-                                        top: ny - bh / 2,
-                                        bottom: ny + bh / 2
-                                    };
-                                    
-                                    var collides = false;
-                                    for (var bi = 0; bi < placedBoxes.length; bi++) {
-                                        var pb = placedBoxes[bi];
-                                        if (rect.left < pb.right && rect.right > pb.left &&
-                                            rect.top < pb.bottom && rect.bottom > pb.top) {
-                                            collides = true;
+                                var targetPlaces = [];
+                                for (var tvi = 0; tvi < tvCities.length; tvi++) {
+                                    var cName = tvCities[tvi];
+                                    for (var pi = 0; pi < places.length; pi++) {
+                                        if (places[pi][0] === cName) {
+                                            targetPlaces.push(places[pi]);
                                             break;
                                         }
                                     }
-                                    if (!collides) {
-                                        bestPos = { x: nx, y: ny, rect: rect };
-                                        break;
+                                }
+
+                                var placedBoxes = [];
+                                var shifts = [
+                                    { dx: 0, dy: 0 },
+                                    { dx: 0, dy: -20 }, { dx: 0, dy: 20 }, { dx: -22, dy: 0 }, { dx: 22, dy: 0 },
+                                    { dx: -20, dy: -20 }, { dx: 20, dy: -20 }, { dx: -20, dy: 20 }, { dx: 20, dy: 20 }
+                                ];
+                                
+                                for (var pi = 0; pi < targetPlaces.length; pi++) {
+                                    var place = targetPlaces[pi];
+                                    var coords = projectCoords(Number(place[2]), Number(place[3]));
+                                    var u = coords.u, v = coords.v;
+                                    if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+                                    
+                                    var px = Math.round(u * (img.width - 1));
+                                    var py = Math.round(v * (img.height - 1));
+                                    var idx = (py * img.width + px) * 4;
+                                    var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                                    
+                                    var val = null;
+                                    if (a > 12) val = valueFromColour(r, g, b, layerPal);
+                                    if (val === null || !Number.isFinite(val)) continue;
+                                    
+                                    var cx = u * 2200;
+                                    var cy = v * 1640;
+                                    var isCorse = Number(place[3]) > 8.4 && Number(place[2]) < 43.1;
+                                    if (isCorse) cx -= 150;
+                                    
+                                    var strVal = String(Math.round(val));
+                                    if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
+                                        if (val < 0.2) continue;
+                                    } else if (currentLayer.indexOf('mucape') !== -1) {
+                                        if (val < 40) continue;
+                                    } else if (currentLayer.indexOf('graupel') !== -1) {
+                                        if (val < 0.1) continue;
                                     }
+                                    
+                                    var bw = (strVal.length >= 3 ? 175 : 145);
+                                    var bh = 92;
+                                    
+                                    var bestPos = null;
+                                    for (var si = 0; si < shifts.length; si++) {
+                                        var nx = cx + shifts[si].dx;
+                                        var ny = cy + shifts[si].dy;
+                                        var rect = {
+                                            left: nx - bw / 2,
+                                            right: nx + bw / 2,
+                                            top: ny - bh / 2,
+                                            bottom: ny + bh / 2
+                                        };
+                                        
+                                        var collides = false;
+                                        for (var bi = 0; bi < placedBoxes.length; bi++) {
+                                            var pb = placedBoxes[bi];
+                                            if (rect.left < pb.right && rect.right > pb.left &&
+                                                rect.top < pb.bottom && rect.bottom > pb.top) {
+                                                collides = true;
+                                                break;
+                                            }
+                                        }
+                                        if (!collides) {
+                                            bestPos = { x: nx, y: ny, rect: rect };
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (!bestPos) continue;
+                                    
+                                    placedBoxes.push(bestPos.rect);
+                                    valsData.push({ text: strVal, val: Math.round(val), cx: bestPos.x, cy: bestPos.y });
                                 }
-                                
-                                if (!bestPos) {
-                                    continue; // Empêche tout chevauchement
-                                }
-                                
-                                placedBoxes.push(bestPos.rect);
-                                valsData.push({ text: strVal, val: Math.round(val), cx: bestPos.x, cy: bestPos.y });
                             }
+
                             
                             var minVal = Infinity, maxVal = -Infinity;
                             if (isTemp && valsData.length > 0) {
@@ -5128,6 +5168,16 @@
             });
         }
 
+        // Synchronisation case à cocher Valeurs <-> Sélecteur de disposition TikTok
+        var tiktokValCb = document.getElementById('tiktok-values-checkbox');
+        var tiktokLayoutSel = document.getElementById('tiktok-layout-select');
+        if (tiktokValCb && tiktokLayoutSel) {
+            function syncTiktokValUI() {
+                tiktokLayoutSel.disabled = !tiktokValCb.checked;
+            }
+            tiktokValCb.addEventListener('change', syncTiktokValUI);
+            syncTiktokValUI();
+        }
 
 
 
