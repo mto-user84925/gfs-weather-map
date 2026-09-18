@@ -139,31 +139,20 @@
             display: block;
         }
         .amfm-title-text {
-            font-size: 13.5px;
-            font-weight: 800;
-            color: #fff;
-            white-space: nowrap;
-            letter-spacing: 0.3px;
+            display: none !important;
         }
         .amfm-badge {
-            background: linear-gradient(135deg, #00d2ff, #0284c7);
-            color: #070b14 !important;
-            font-size: 10.5px;
-            font-weight: 900;
-            padding: 2px 7px;
-            border-radius: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
+            display: none !important;
         }
 
         /* Bloc Centre : Sélecteurs de Calque et Région */
         .amfm-nav-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex: 1;
-            max-width: 620px;
-            justify-content: center;
+            max-width: 780px;
+            justify-content: flex-start;
         }
 
         /* Bloc Droite : Exports + Outils */
@@ -183,7 +172,7 @@
             flex-shrink: 0;
         }
 
-        /* Dropdown Export */
+        /* Dropdown Export & Téléchargements HD / TikTok */
         .amfm-export-wrap {
             position: relative;
             display: inline-flex;
@@ -191,83 +180,114 @@
         .amfm-export-dropdown {
             display: none;
             position: absolute;
-            top: calc(100% + 6px);
+            top: calc(100% + 8px);
             right: 0;
-            background: rgba(10, 18, 34, 0.97);
-            border: 1px solid var(--amfm-border);
-            border-radius: 10px;
-            padding: 5px;
+            background: rgba(10, 18, 34, 0.98);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(0, 210, 255, 0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
             z-index: 500;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
-            gap: 4px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85);
             flex-direction: column;
-            min-width: 140px;
+            width: 320px;
+            gap: 8px;
         }
         .amfm-export-wrap.open .amfm-export-dropdown { display: flex; }
-        .amfm-export-dropdown .amfm-btn {
-            width: 100%;
-            justify-content: flex-start;
+        .amfm-export-sec-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #38bdf8;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 2px;
         }
-        .amfm-export-dropdown .amfm-btn-download {
+        .amfm-export-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        .amfm-export-grid .amfm-btn-download {
+            height: 36px;
+            font-size: 11.5px;
+            font-weight: 700;
             background: rgba(2, 132, 199, 0.2) !important;
             border-color: rgba(0, 210, 255, 0.3) !important;
             color: #38bdf8 !important;
+            justify-content: center;
         }
-        .amfm-export-dropdown .amfm-btn-download:hover {
+        .amfm-export-grid .amfm-btn-download:hover {
             background: rgba(2, 132, 199, 0.5) !important;
+            color: #fff !important;
         }
-
-        /* Label Checkbox Valeurs TikTok */
-        .amfm-tiktok-val-label {
-            display: inline-flex;
-            align-items: center;
+        .amfm-export-divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 4px 0;
+        }
+        .amfm-btn-tiktok-main {
+            height: 40px !important;
+            font-size: 12px !important;
+            font-weight: 800 !important;
+            background: linear-gradient(135deg, #ff0050, #00f2fe) !important;
+            color: #fff !important;
+            border: none !important;
+            box-shadow: 0 4px 15px rgba(255, 0, 80, 0.3);
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+        .amfm-btn-tiktok-main:hover {
+            box-shadow: 0 4px 20px rgba(0, 242, 254, 0.5);
+            transform: translateY(-1px);
+        }
+        .amfm-export-tiktok-box {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
             gap: 6px;
+        }
+        .amfm-export-opt-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             font-size: 11.5px;
-            font-weight: 700;
+            font-weight: 600;
             color: #e2e8f0;
             cursor: pointer;
             user-select: none;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid var(--amfm-border);
-            padding: 0 10px;
-            height: 38px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            white-space: nowrap;
         }
-        .amfm-tiktok-val-label:hover {
-            background: rgba(0, 210, 255, 0.15);
-            border-color: var(--amfm-accent);
-            color: #fff;
-        }
-        .amfm-tiktok-val-label input[type="checkbox"] {
-            cursor: pointer;
+        .amfm-export-opt-row input[type="checkbox"] {
             accent-color: #00d2ff;
+            cursor: pointer;
             width: 15px;
             height: 15px;
             margin: 0;
         }
-
-        /* Sélecteur de disposition des valeurs TikTok */
-        .amfm-tiktok-layout-select {
-            height: 38px;
+        .amfm-export-opt-sub {
+            padding-left: 23px;
+        }
+        .amfm-export-opt-sub .amfm-tiktok-layout-select {
+            width: 100%;
+            height: 32px;
             font-size: 11px;
-            font-weight: 700;
-            padding: 0 24px 0 8px;
-            border-radius: 8px;
+            font-weight: 600;
+            padding: 0 10px;
+            border-radius: 6px;
             background-color: rgba(255, 255, 255, 0.08);
             border: 1px solid var(--amfm-border);
             color: #e2e8f0;
             cursor: pointer;
             outline: none;
-            transition: all 0.2s ease;
         }
-        .amfm-tiktok-layout-select:hover, .amfm-tiktok-layout-select:focus-visible {
-            border-color: var(--amfm-accent);
-            background-color: rgba(0, 210, 255, 0.12);
-            color: #fff;
-        }
-        .amfm-tiktok-layout-select:disabled {
+        .amfm-export-opt-sub .amfm-tiktok-layout-select:disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
@@ -305,11 +325,11 @@
             background: rgba(14, 23, 40, 0.95);
             border: 1px solid var(--amfm-border);
             color: #fff;
-            font-size: 12.5px;
+            font-size: 11.5px;
             font-weight: 700;
-            padding: 0 10px;
+            padding: 0 6px 0 8px;
             border-radius: 8px;
-            height: 38px;
+            height: 36px;
             outline: none;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -317,8 +337,8 @@
             -webkit-appearance: none;
             background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2338bdf8' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 10px center;
-            padding-right: 28px;
+            background-position: right 8px center;
+            padding-right: 22px;
         }
         select:hover, select:focus-visible {
             border-color: var(--amfm-border-focus);
@@ -334,23 +354,27 @@
         }
 
         .amfm-select-layer {
-            flex: 1.2;
-            min-width: 170px;
+            flex: 1.1;
+            min-width: 145px;
+            max-width: 185px;
         }
         .amfm-select-model {
             flex: 0.9;
-            min-width: 150px;
+            min-width: 130px;
+            max-width: 160px;
             background: rgba(0, 119, 255, 0.18);
             border-color: rgba(0, 119, 255, 0.55);
             font-weight: 800;
         }
         .amfm-select-region {
             flex: 0.8;
-            min-width: 130px;
+            min-width: 105px;
+            max-width: 130px;
         }
         .amfm-select-sea {
-            flex: 0.8;
-            min-width: 140px;
+            flex: 0.7;
+            min-width: 95px;
+            max-width: 115px;
         }
 
         /* Boutons d'Action compacts */
@@ -358,16 +382,16 @@
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid var(--amfm-border);
             color: #fff;
-            padding: 0 10px;
+            padding: 0 8px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11.5px;
             font-weight: 700;
-            height: 38px;
+            height: 36px;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
+            gap: 5px;
             transition: all 0.2s ease;
             white-space: nowrap;
             text-decoration: none;
@@ -1249,24 +1273,30 @@
             }
         }
 
-        /* 📱 RESPONSIVE & COMPACT NAVIGATION BAR */
-        .amfm-btn-download span,
-        .amfm-btn-toggle span,
-        .amfm-btn-commune span {
-            display: none !important;
-        }
-        .amfm-btn-download,
-        .amfm-btn-toggle,
-        .amfm-btn-icon {
-            width: 38px !important;
-            min-width: 38px !important;
-            height: 38px !important;
-            padding: 0 !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            border-radius: 8px !important;
-            box-sizing: border-box !important;
+        /* 📱 RESPONSIVE & COMPACT NAVIGATION BAR - Uniquement sur petits écrans (<= 1024px) */
+        @media (max-width: 1024px) {
+            .amfm-btn-download span,
+            .amfm-btn-toggle span,
+            .amfm-btn-commune span {
+                display: none !important;
+            }
+            .amfm-btn-download,
+            .amfm-btn-toggle,
+            .amfm-btn-icon {
+                width: 38px !important;
+                min-width: 38px !important;
+                height: 38px !important;
+                padding: 0 !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                border-radius: 8px !important;
+                box-sizing: border-box !important;
+            }
+            .amfm-select-sea {
+                max-width: 110px;
+                font-size: 11px;
+            }
         }
         #amfm-logo-action-btn {
             display: none !important;
@@ -1275,18 +1305,18 @@
             display: none !important;
         }
         .amfm-select-sea {
-            max-width: 140px;
+            max-width: 145px;
             font-size: 11.5px;
             height: 38px !important;
         }
         .amfm-navbar {
-            gap: 6px;
+            gap: 8px;
         }
         .amfm-nav-actions {
-            gap: 4px;
+            gap: 6px;
         }
         .amfm-btn-group {
-            gap: 3px;
+            gap: 4px;
         }
 
         @media (max-width: 1650px) {
@@ -1566,30 +1596,30 @@
         /* 🔍 BARRE DE RECHERCHE MONDIALE (Adresse, Ville, Pays) */
         .amfm-search-wrapper {
             position: relative;
-            flex: 1.1;
-            min-width: 170px;
-            max-width: 290px;
+            flex: 0.9;
+            min-width: 120px;
+            max-width: 175px;
             display: flex;
             align-items: center;
         }
         .amfm-search-icon {
             position: absolute;
-            left: 11px;
+            left: 10px;
             color: var(--amfm-accent);
-            font-size: 13px;
+            font-size: 12px;
             pointer-events: none;
             z-index: 2;
             transition: transform 0.2s ease, color 0.2s ease;
         }
         .amfm-search-input {
             width: 100%;
-            height: 38px;
+            height: 36px;
             background: rgba(14, 23, 40, 0.95);
             border: 1px solid var(--amfm-border);
             border-radius: 8px;
-            padding: 0 30px 0 32px;
+            padding: 0 26px 0 28px;
             color: #ffffff;
-            font-size: 12.5px;
+            font-size: 11.5px;
             font-weight: 600;
             outline: none;
             transition: all 0.2s ease;
@@ -2584,9 +2614,9 @@
                     </div>
                 </div>
 
-                <!-- Droite : Outils Carte + Exports + Logo -->
+                <!-- Droite : Outils Carte + Téléchargements (HD & TikTok) + Outils -->
                 <div class="amfm-nav-actions">
-                    <!-- Outils d'affichage Carte (Villes, Valeurs, Cyclones) -->
+                    <!-- Outils d'affichage Carte (Villes, Valeurs, Lignes TV) -->
                     <div class="amfm-btn-group">
                         <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cities aria-pressed="true" aria-label="Afficher ou masquer les villes" title="Afficher/Masquer les villes">
                             <i class="fa-solid fa-city" aria-hidden="true"></i> <span>Villes</span>
@@ -2594,11 +2624,8 @@
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-values aria-pressed="false" aria-label="Afficher ou masquer les valeurs météo" title="Afficher/Masquer les valeurs météo sur la carte">
                             <i class="fa-solid fa-hashtag" aria-hidden="true"></i> <span>Valeurs</span>
                         </button>
-                        <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones aria-pressed="true" aria-label="Afficher ou masquer les cyclones" title="Afficher/Masquer les cyclones, cônes et trajectoires sur la carte">
-                            <i class="fa-solid fa-hurricane" aria-hidden="true"></i> <span>Cyclones</span>
-                        </button>
-                        <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV (masses d'air)" title="Afficher/Masquer les lignes TV des masses d'air">
-                            <i class="fa-solid fa-water" aria-hidden="true"></i> <span>Lignes TV</span>
+                        <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
+                            <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
                         </button>
                     </div>
 
@@ -2607,77 +2634,75 @@
                     <!-- Sélecteur Mode Terre / Mer -->
                     <select class="amfm-select-sea" data-amfm-select-sea aria-label="Filtrer l'affichage des températures en mer et littoral" title="Zone d'affichage des températures (Terres / Mer)">
                         <option value="land" selected>🌲 Terres seules</option>
-                        <option value="none">🌊 Terres & Mer</option>
-                        <option value="coast">🏖️ Terres + Bord de mer</option>
+                        <option value="none">🌊 Terres &amp; Mer</option>
+                        <option value="coast">🏖️ Terres + Bord</option>
                     </select>
-
-                    <div class="amfm-nav-sep"></div>
 
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-reset aria-label="Recentrer la carte météo" title="Recentrer la carte">
                         <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
                     </button>
 
-                    <button type="button" id="amfm-logo-action-btn" class="amfm-btn amfm-btn-logo-switch" title="Changer de logo : Météo-Climat Pro ⟷ Monsieur Météo" aria-label="Changer de logo">
-                        <i class="fa-solid fa-repeat" aria-hidden="true"></i> <span id="amfm-logo-action-text">Monsieur Météo</span>
-                    </button>
-
                     <div class="amfm-nav-sep"></div>
 
-                    <!-- Exports : dropdown + TikTok toujours visible -->
+                    <!-- Menu Unique Téléchargement & Exports (HD + TikTok) -->
                     <div class="amfm-export-wrap" id="amfm-export-wrap">
-                        <button type="button" class="amfm-btn amfm-btn-download" id="amfm-export-toggle" aria-haspopup="true" aria-expanded="false" title="Exports carte (PNG, Écran, JPEG, GIF…)">
-                            <i class="fa-solid fa-download" aria-hidden="true"></i> <span>Export</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;" aria-hidden="true"></i>
+                        <button type="button" class="amfm-btn amfm-btn-download" id="amfm-export-toggle" aria-haspopup="true" aria-expanded="false" title="Téléchargements (PNG HD, Écran, GIF, Pack TikTok 16j…)">
+                            <i class="fa-solid fa-download" aria-hidden="true"></i> <span>Télécharger</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:3px;" aria-hidden="true"></i>
                         </button>
                         <div class="amfm-export-dropdown" role="menu">
-                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture aria-label="Télécharger en PNG 4:3" title="Télécharger la carte en PNG HD (4:3 Standard)">
-                                <i class="fa-solid fa-image" aria-hidden="true"></i> PNG
+                            <!-- Section 1 : Formats Standard HD -->
+                            <div class="amfm-export-sec-title">
+                                <i class="fa-solid fa-photo-film"></i> Téléchargement HD
+                            </div>
+                            <div class="amfm-export-grid">
+                                <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture aria-label="Télécharger en PNG HD" title="Télécharger la carte en PNG HD (Format Standard avec Titre, Logo, Légende)">
+                                    <i class="fa-solid fa-image" aria-hidden="true"></i> <span>PNG HD</span>
+                                </button>
+                                <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-screen aria-label="Capture d'écran HD fidèle" title="Télécharger la Capture d'Écran HD exacte">
+                                    <i class="fa-solid fa-camera" aria-hidden="true"></i> <span>Écran</span>
+                                </button>
+                                <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-jpeg aria-label="Télécharger en JPEG" title="Télécharger en JPEG">
+                                    <i class="fa-solid fa-file-image" aria-hidden="true"></i> <span>JPEG</span>
+                                </button>
+                                <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif aria-label="Télécharger l'animation GIF" title="Télécharger l'animation GIF (Carte globale)">
+                                    <i class="fa-solid fa-film" aria-hidden="true"></i> <span>GIF Animé</span>
+                                </button>
+                            </div>
+
+                            <div class="amfm-export-divider"></div>
+
+                            <!-- Section 2 : Pack Vidéo TikTok (1080x1920) -->
+                            <div class="amfm-export-sec-title">
+                                <i class="fa-brands fa-tiktok"></i> Pack Vidéo TikTok (1080×1920)
+                            </div>
+                            <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok-main" data-amfm-capture-tiktok aria-label="Télécharger Pack TikTok 16 Cartes" title="Pack TikTok 16 Cartes (J0 à J15, 1080×1920)">
+                                <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>Télécharger le Pack 16 Cartes (ZIP)</span>
                             </button>
-                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-screen aria-label="Capture d'écran HD fidèle" title="Télécharger la Capture d'Écran HD exacte">
-                                <i class="fa-solid fa-camera" aria-hidden="true"></i> Écran
-                            </button>
-                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-jpeg aria-label="Télécharger en JPEG" title="Télécharger en JPEG">
-                                <i class="fa-solid fa-file-image" aria-hidden="true"></i> JPEG
-                            </button>
-                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif aria-label="Télécharger l'animation GIF" title="Télécharger l'animation GIF (Carte globale)">
-                                <i class="fa-solid fa-film" aria-hidden="true"></i> GIF
-                            </button>
-                            <button type="button" class="amfm-btn amfm-btn-download" data-amfm-capture-gif-screen aria-label="Télécharger le GIF animé de l'écran" title="Télécharger l'animation GIF de l'écran">
-                                <i class="fa-solid fa-video" aria-hidden="true"></i> GIF Écran
-                            </button>
+                            <div class="amfm-export-tiktok-box">
+                                <label class="amfm-export-opt-row" title="Incruster les pastilles de valeurs sur les cartes TikTok">
+                                    <input type="checkbox" id="tiktok-values-checkbox" checked>
+                                    <span>Incruster les valeurs</span>
+                                </label>
+                                <div class="amfm-export-opt-sub">
+                                    <select id="tiktok-layout-select" class="amfm-tiktok-layout-select" title="Disposition des valeurs sur les cartes TikTok">
+                                        <option value="bureau" selected>🎯 Modèle Bureau (Référence)</option>
+                                        <option value="villes">🏙️ Grandes Villes (33 agglomérations)</option>
+                                    </select>
+                                </div>
+                                <label class="amfm-export-opt-row" title="Afficher les lignes TV et cartouches de zones sur les cartes TikTok">
+                                    <input type="checkbox" id="tiktok-fronts-checkbox">
+                                    <span>Lignes TV &amp; Cartouches de zones</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- TikTok : toujours visible + option Incruster valeurs explicite + choix de disposition -->
-                    <label class="amfm-tiktok-val-label" title="Incruster les valeurs numériques (températures, précipitations, vent, neige…) sur les 16 cartes TikTok">
-                        <input type="checkbox" id="tiktok-values-checkbox" checked>
-                        <span>Valeurs</span>
-                    </label>
-                    <label class="amfm-tiktok-val-label" title="Afficher les lignes TV de délimitation des zones / masses d'air sur les cartes TikTok">
-                        <input type="checkbox" id="tiktok-fronts-checkbox">
-                        <span>Lignes TV</span>
-                    </label>
-                    <select id="tiktok-layout-select" class="amfm-tiktok-layout-select" title="Disposition des valeurs sur les cartes TikTok">
-                        <option value="bureau" selected>🎯 Modèle Bureau (Image référence)</option>
-                        <option value="villes">🏙️ Grandes Villes (33 agglomérations)</option>
-                    </select>
-                    <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok" data-amfm-capture-tiktok aria-label="Pack TikTok 16 Cartes" title="📱 Pack TikTok 16 Cartes (J0 à J15, 1080×1920 fond transparent, France + Corse)">
-                        <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>TikTok 16j</span>
-                    </button>
-
                     <div class="amfm-nav-sep"></div>
 
-                    <!-- Outils Avancés : Météogramme, Cyclones & Mode TV -->
+                    <!-- Outils Avancés : Météogramme & Mode TV -->
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-diagram aria-pressed="false" aria-label="Météogramme temporel au clic" title="📈 Météogramme temporel (Cliquer sur la carte pour voir l'évolution 16j)">
                         <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
                     </button>
-
-                    <button type="button" id="amfm-btn-cyclones-modal" class="amfm-btn amfm-btn-icon" aria-label="Tous les phénomènes cycloniques actifs" title="🌀 Phénomènes cycloniques actifs (Cyclones, Typhons & INVESTs)">
-                        <i class="fa-solid fa-hurricane"></i>
-                    </button>
-
-                    <a href="extremes.html" target="_blank" id="amfm-btn-world-alerts" class="amfm-btn amfm-btn-world-alerts" aria-label="Observatoire Mondial des Extrêmes J+16 (Nouvel onglet)" title="🌍 Observatoire Mondial des Extrêmes J+16">
-                        <i class="fa-solid fa-earth-americas" style="color: #38bdf8;"></i> <span>Extrêmes J+16</span> <span class="amfm-badge" id="world-alerts-count" style="background:#ef4444; color:#fff !important; display:none;">0</span>
-                    </a>
 
                     <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-tv aria-label="Mode Présentation TV (Touche Z)" title="📺 Mode Présentation TV / Zen (Touche Z ou T)">
                         <i class="fa-solid fa-tv" aria-hidden="true"></i>
@@ -3026,7 +3051,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260918-tv-fronts"></script>
+    <script src="js/arome-map.js?v=20260918-clean-ui"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";

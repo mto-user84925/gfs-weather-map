@@ -1453,8 +1453,8 @@
                 drawCycloneOverlays(context, exportMapRect, output.width, output.height, true, occupied);
             }
 
-            // 📺 Cartouches TV broadcast automatiques (si l'option "Lignes TV" est active / cochée et sans la grille de valeurs)
-            if (frontsVisible && !valuesVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
+            // 📺 Cartouches TV broadcast automatiques (si l'option "Lignes TV" est active / cochée)
+            if (frontsVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
                 try {
                     var isFranceDom = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
                     var fMask = (isFranceDom && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
@@ -4780,8 +4780,8 @@
                 frontsContext.stroke();
             }
 
-            // 2. Si les valeurs numériques ponctuelles ne sont PAS cochées, tracer les cartouches de plages TV
-            if (!valuesVisible && frontsData.badges.length) {
+            // 2. Tracer les cartouches de plages TV au cœur de chaque zone
+            if (frontsData.badges.length) {
                 frontsContext.shadowColor = 'rgba(0, 0, 0, 0.75)';
                 frontsContext.shadowBlur = 10 / horizontalScale;
                 frontsContext.shadowOffsetX = 3.5 / horizontalScale;
@@ -6157,6 +6157,27 @@
                 frontsVisible = !frontsVisible;
                 toggleFrontsButton.classList.toggle('is-active', frontsVisible);
                 toggleFrontsButton.setAttribute('aria-pressed', frontsVisible ? 'true' : 'false');
+                var tiktokCb = document.getElementById('tiktok-fronts-checkbox');
+                if (tiktokCb) {
+                    tiktokCb.checked = frontsVisible;
+                }
+                if (frontsVisible && (!tiktokAssets || !tiktokAssets.maskMainland)) {
+                    loadTiktokAssets().then(function() {
+                        scheduleRender();
+                    });
+                } else {
+                    scheduleRender();
+                }
+            });
+        }
+        var tiktokFrontsCb = document.getElementById('tiktok-fronts-checkbox');
+        if (tiktokFrontsCb) {
+            tiktokFrontsCb.addEventListener('change', function () {
+                frontsVisible = tiktokFrontsCb.checked;
+                if (toggleFrontsButton) {
+                    toggleFrontsButton.classList.toggle('is-active', frontsVisible);
+                    toggleFrontsButton.setAttribute('aria-pressed', frontsVisible ? 'true' : 'false');
+                }
                 if (frontsVisible && (!tiktokAssets || !tiktokAssets.maskMainland)) {
                     loadTiktokAssets().then(function() {
                         scheduleRender();
