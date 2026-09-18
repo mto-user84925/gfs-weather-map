@@ -4544,7 +4544,7 @@
                 return cachedFrontsData;
             }
 
-            // Lissage gaussien macro (sigma ~ 2.2)
+            // Lissage gaussien macro broadcast renforcé (sigma ~ 2.8, rayon 3)
             var smoothed = new Float32Array(gw * gh);
             for (var y = 0; y < gh; y++) {
                 for (var x = 0; x < gw; x++) {
@@ -4554,15 +4554,15 @@
                         continue;
                     }
                     var sum = 0, weight = 0;
-                    for (var dy = -2; dy <= 2; dy++) {
+                    for (var dy = -3; dy <= 3; dy++) {
                         var ny = y + dy;
                         if (ny < 0 || ny >= gh) continue;
-                        for (var dx = -2; dx <= 2; dx++) {
+                        for (var dx = -3; dx <= 3; dx++) {
                             var nx = x + dx;
                             if (nx < 0 || nx >= gw) continue;
                             var nidx = ny * gw + nx;
                             if (valid[nidx]) {
-                                var w = Math.exp(-(dx * dx + dy * dy) / (2 * 2.2 * 2.2));
+                                var w = Math.exp(-(dx * dx + dy * dy) / (2 * 2.8 * 2.8));
                                 sum += field[nidx] * w;
                                 weight += w;
                             }
@@ -4572,7 +4572,7 @@
                 }
             }
 
-            // Collecte des valeurs valides et calcul des percentiles robustes (3% et 97%)
+            // Collecte des valeurs valides et percentiles robustes (4% et 96%)
             var validVals = [];
             for (var fidx = 0; fidx < gw * gh; fidx++) {
                 if (valid[fidx]) validVals.push(field[fidx]);
@@ -4583,19 +4583,34 @@
                 return cachedFrontsData;
             }
             validVals.sort(function (a, b) { return a - b; });
-            var pMin = validVals[Math.floor(validVals.length * 0.03)];
-            var pMax = validVals[Math.floor(validVals.length * 0.97)];
+            var pMin = validVals[Math.floor(validVals.length * 0.04)];
+            var pMax = validVals[Math.floor(validVals.length * 0.96)];
             if (pMax <= pMin) pMax = pMin + 1;
 
-            // Paliers TV réguliers couvrant l'échelle météorologique réelle
-            var numBands = 5;
-            var bandStep = (pMax - pMin) / numBands;
-            var thresholds = [];
-            for (var i = 1; i < numBands; i++) {
-                thresholds.push(pMin + i * bandStep);
+            // ponytail: alignement strict des lignes de front sur les vrais paliers des cartouches TV
+            // pour qu'aucune ligne ne sépare deux cartouches identiques
+            var range = pMax - pMin;
+            var stepSize = 2;
+            if (isTemp) {
+                stepSize = range > 24 ? 4 : 2;
+            } else if (isRain) {
+                stepSize = range > 80 ? 20 : (range > 30 ? 10 : 5);
+            } else if (isWind) {
+                stepSize = 20;
+            } else {
+                stepSize = Math.max(1, Math.round(range / 5));
             }
 
-            // Définition des 5 zones thermiques intégrales (aucune zone exclue)
+            var firstTh = Math.ceil((pMin + stepSize * 0.5) / stepSize) * stepSize;
+            var thresholds = [];
+            for (var th = firstTh; th <= pMax - stepSize * 0.4; th += stepSize) {
+                thresholds.push(th);
+            }
+            if (thresholds.length === 0) {
+                thresholds.push(Math.round((pMin + pMax) / 2));
+            }
+
+            // Définition des bandes thermiques intégrales alignées sur ces mêmes seuils
             var bands = [];
             bands.push({ low: -Infinity, high: thresholds[0], type: 'min' });
             for (var i = 0; i < thresholds.length - 1; i++) {
@@ -4713,12 +4728,13 @@
 
                         var label = '';
                         if (isTemp) {
-                            var stepSize = 2;
-                            var v0 = Math.floor(medVal / stepSize) * stepSize;
-                            var v1 = v0 + stepSize;
-                            if (band.type === 'min') label = '<= ' + v1 + ' °C';
-                            else if (band.type === 'max') label = '> ' + v0 + ' °C';
-                            else label = v0 + ' à ' + v1 + ' °C';
+                            if (band.type === 'min') {
+                                label = '< ' + Math.round(band.high) + ' °C';
+                            } else if (band.type === 'max') {
+                                label = '> ' + Math.round(band.low) + ' °C';
+                            } else {
+                                label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' °C';
+                            }
                         } else if (isRain) {
                             var r0 = Math.max(0, Math.floor(medVal / 10) * 10);
                             var r1 = r0 + 10;
@@ -4876,7 +4892,7 @@
                 var polys = chainFrontSegments(segments);
                 for (var pi = 0; pi < polys.length; pi++) {
                     var poly = polys[pi];
-                    if (poly.length < 16) continue;
+                    if (poly.length < 20) continue;
                     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                     for (var ptI = 0; ptI < poly.length; ptI++) {
                         var pt = poly[ptI];
@@ -4885,8 +4901,8 @@
                         if (pt[1] < minY) minY = pt[1];
                         if (pt[1] > maxY) maxY = pt[1];
                     }
-                    if (Math.max(maxX - minX, maxY - minY) < 14) continue;
-                    var smoothPoly = chaikinFrontSmooth(poly, 3);
+                    if (Math.max(maxX - minX, maxY - minY) < 15) continue;
+                    var smoothPoly = chaikinFrontSmooth(poly, 4);
                     var normPts = [];
                     for (var si = 0; si < smoothPoly.length; si++) {
                         normPts.push([
