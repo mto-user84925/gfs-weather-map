@@ -1513,12 +1513,12 @@
                             var bx = b.u * 2200.0 * hScale + offX;
                             var by = b.v * natH * vScale + offY;
                             var text = b.label;
-                            var curFontSize = b.isCorse ? Math.round(bFontSize * 0.9) : bFontSize;
+                            var curFontSize = bFontSize; // Même taille pour tous les cartouches
                             context.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                             var tw = context.measureText(text).width;
                             var padX = 20;
                             var padY = 12;
-                            var bw = tw + padX * 2;
+                            var bw = Math.max(180, tw + padX * 2);
                             var bh = curFontSize + padY * 2;
                             var rad = 14;
 
@@ -2317,14 +2317,14 @@
                                         var bx = badge.u * 2200;
                                         var by = badge.v * 1640;
                                         var text = badge.label;
-                                        var curFontSize = badge.isCorse ? 46 : fontSize;
+                                        var curFontSize = fontSize; // Même taille pour tous les cartouches TikTok
                                         compCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                         var tw = compCtx.measureText(text).width;
-                                        var padX = badge.isCorse ? 18 : 24;
-                                        var padY = badge.isCorse ? 11 : 15;
-                                        var bw = tw + padX * 2;
+                                        var padX = 24;
+                                        var padY = 15;
+                                        var bw = Math.max(220, tw + padX * 2);
                                         var bh = curFontSize + padY * 2;
-                                        var rad = badge.isCorse ? 14 : 16;
+                                        var rad = 16;
 
                                         compCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
                                         compCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
@@ -4729,9 +4729,15 @@
                         var label = '';
                         if (isTemp) {
                             if (band.type === 'min') {
-                                label = '< ' + Math.round(band.high) + ' °C';
+                                var s0 = Math.floor(medVal / stepSize) * stepSize;
+                                var s1 = s0 + stepSize;
+                                if (s1 > Math.round(band.high)) { s1 = Math.round(band.high); s0 = s1 - stepSize; }
+                                label = s0 + ' à ' + s1 + ' °C';
                             } else if (band.type === 'max') {
-                                label = '> ' + Math.round(band.low) + ' °C';
+                                var s0 = Math.floor(medVal / stepSize) * stepSize;
+                                if (s0 < Math.round(band.low)) s0 = Math.round(band.low);
+                                var s1 = s0 + stepSize;
+                                label = s0 + ' à ' + s1 + ' °C';
                             } else {
                                 label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' °C';
                             }
@@ -4760,12 +4766,13 @@
                             }
                         }
 
-                        var isBretagne = isFranceDomain && (px < 30 && py >= 20 && py <= 36);
-
-                        // Position remontée de 1.3 pixel de grille vers le nord
+                        var isBretagne = isFranceDomain && (px < 32 && py >= 20 && py <= 36);
+                        // Recentrage de la Bretagne vers l'intérieur (Loudéac/Centre-Bretagne) pour éviter la côte
+                        var finalPx = isBretagne ? Math.max(16, px) : px;
                         var shiftedPy = Math.max(2, py - 1.3);
+
                         badges.push({
-                            u: px / (gw - 1),
+                            u: finalPx / (gw - 1),
                             v: shiftedPy / (gh - 1),
                             label: label,
                             clearance: maxD,
@@ -4774,11 +4781,11 @@
                             compSize: cSize
                         });
 
-                        // Rayon d'exclusion intra-composante (6 pixels au lieu de 10)
-                        for (var ey = Math.max(0, py - 7); ey <= Math.min(gh - 1, py + 7); ey++) {
-                            for (var ex = Math.max(0, px - 7); ex <= Math.min(gw - 1, px + 7); ex++) {
+                        // Rayon d'exclusion intra-composante (8 pixels pour un espacement harmonieux)
+                        for (var ey = Math.max(0, py - 8); ey <= Math.min(gh - 1, py + 8); ey++) {
+                            for (var ex = Math.max(0, px - 8); ex <= Math.min(gw - 1, px + 8); ex++) {
                                 var edx = ex - px, edy = ey - py;
-                                if (edx * edx + edy * edy <= 49) {
+                                if (edx * edx + edy * edy <= 64) {
                                     dist[ey * gw + ex] = 0;
                                 }
                             }
@@ -4803,7 +4810,7 @@
                 coveredComps.add(filteredBadges[0].compId);
             }
 
-            // Passe 1 : Garantir un cartouche pour chaque composante (zone)
+            // Passe 1 : Garantir un cartouche central pour chaque zone
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
                 if (coveredComps.has(candidate.compId)) continue;
@@ -4812,7 +4819,7 @@
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    if (du * du + dv * dv < 36) { // ~6 pixels de grille mini pour éviter superposition directe
+                    if (du * du + dv * dv < 49) { // ~7 pixels de grille mini entre zones
                         tooClose = true;
                         break;
                     }
@@ -4823,7 +4830,7 @@
                 }
             }
 
-            // Passe 2 : Ajouter les seconds cartouches utiles pour les très grandes zones
+            // Passe 2 : Ajouter un second cartouche UNIQUEMENT pour les zones géantes très espacées (> 16 pixels / ~300 km)
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
                 if (filteredBadges.indexOf(candidate) !== -1) continue;
@@ -4832,7 +4839,8 @@
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    if (du * du + dv * dv < 49) {
+                    var minD2 = (candidate.label === filteredBadges[fi].label) ? 256 : 64; // 16 px si même valeur (anti-doublon Sud-Ouest), 8 px sinon
+                    if (du * du + dv * dv < minD2) {
                         tooClose = true;
                         break;
                     }
@@ -4840,8 +4848,7 @@
                 if (!tooClose) filteredBadges.push(candidate);
             }
 
-            // ponytail: chaque zone doit avoir son cartouche, limite portée à 20 pour couvrir l'intégralité du territoire
-            badges = filteredBadges.slice(0, 20);
+            badges = filteredBadges.slice(0, 16);
 
             function interpolate(v1, v2, th) {
                 if (Math.abs(v2 - v1) < 1e-6) return 0.5;
@@ -4957,24 +4964,41 @@
             // Sur France entière (scale <= 1), zoomFactor = 1.0 -> rendu 100% identique et intact.
             var zoomFactor = Math.max(1.0, (transform && transform.scale) ? transform.scale : 1.0);
 
-            frontsContext.lineCap = 'round';
-            frontsContext.lineJoin = 'round';
-            frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
-            frontsContext.shadowBlur = 12 / zoomFactor;
-            frontsContext.shadowOffsetX = 3.5 / zoomFactor;
-            frontsContext.shadowOffsetY = 3.5 / zoomFactor;
-            frontsContext.strokeStyle = '#ffffff';
-            frontsContext.lineWidth = 7.5 / zoomFactor;
+            var fCan = document.createElement('canvas');
+            fCan.width = 2200;
+            fCan.height = natH;
+            var fCtx = fCan.getContext('2d');
+            fCtx.lineCap = 'round';
+            fCtx.lineJoin = 'round';
+            fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            fCtx.shadowBlur = 12 / zoomFactor;
+            fCtx.shadowOffsetX = 3.5 / zoomFactor;
+            fCtx.shadowOffsetY = 3.5 / zoomFactor;
+            fCtx.strokeStyle = '#ffffff';
+            fCtx.lineWidth = 7.5 / zoomFactor;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
                 if (line.length < 2) continue;
-                frontsContext.beginPath();
-                frontsContext.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
+                fCtx.beginPath();
+                fCtx.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
                 for (var pi = 1; pi < line.length; pi++) {
-                    frontsContext.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
+                    fCtx.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
                 }
-                frontsContext.stroke();
+                fCtx.stroke();
+            }
+
+            if (fMask && fMask.naturalWidth) {
+                var mfCan = document.createElement('canvas');
+                mfCan.width = 2200;
+                mfCan.height = natH;
+                var mfCtx = mfCan.getContext('2d');
+                mfCtx.drawImage(fCan, 0, 0);
+                mfCtx.globalCompositeOperation = 'destination-in';
+                mfCtx.drawImage(fMask, 0, 0, 2200, natH);
+                frontsContext.drawImage(mfCan, 0, 0);
+            } else {
+                frontsContext.drawImage(fCan, 0, 0);
             }
 
             // 2. Tracer les cartouches de plages TV au cœur de chaque zone
@@ -5028,7 +5052,7 @@
                     var tw = frontsContext.measureText(text).width;
                     var padX = 18 / zoomFactor;
                     var padY = 11 / zoomFactor;
-                    var bw = tw + padX * 2;
+                    var bw = Math.max(160 / zoomFactor, tw + padX * 2);
                     var bh = fontSize + padY * 2;
                     var rad = 12 / zoomFactor;
 
