@@ -2240,7 +2240,7 @@
                                 fCtx.shadowOffsetX = 4;
                                 fCtx.shadowOffsetY = 4;
                                 fCtx.strokeStyle = '#ffffff';
-                                fCtx.lineWidth = 8.5; // Bien épaisse pour téléchargement
+                                fCtx.lineWidth = 11; // Bien épaisse pour le format smartphone TikTok
 
                                 for (var li = 0; li < frontsData.lines.length; li++) {
                                     var line = frontsData.lines[li];
@@ -2270,7 +2270,7 @@
                                     compCtx.shadowBlur = 12;
                                     compCtx.shadowOffsetX = 4;
                                     compCtx.shadowOffsetY = 4;
-                                    var fontSize = 46;
+                                    var fontSize = 58;
                                     compCtx.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     compCtx.textAlign = 'center';
                                     compCtx.textBaseline = 'middle';
@@ -2314,14 +2314,14 @@
                                         var bx = badge.u * 2200;
                                         var by = badge.v * 1640;
                                         var text = badge.label;
-                                        var curFontSize = badge.isCorse ? 38 : fontSize;
+                                        var curFontSize = badge.isCorse ? 46 : fontSize;
                                         compCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                         var tw = compCtx.measureText(text).width;
-                                        var padX = badge.isCorse ? 16 : 22;
-                                        var padY = badge.isCorse ? 10 : 14;
+                                        var padX = badge.isCorse ? 18 : 24;
+                                        var padY = badge.isCorse ? 11 : 15;
                                         var bw = tw + padX * 2;
                                         var bh = curFontSize + padY * 2;
-                                        var rad = badge.isCorse ? 12 : 14;
+                                        var rad = badge.isCorse ? 14 : 16;
 
                                         compCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
                                         compCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';

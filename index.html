@@ -2690,9 +2690,13 @@
                                 <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>Télécharger le Pack 16 Cartes (ZIP)</span>
                             </button>
                             <div class="amfm-export-tiktok-box">
-                                <label class="amfm-export-opt-row" title="Incruster les pastilles de valeurs sur les cartes TikTok">
+                                <label class="amfm-export-opt-row" title="Afficher l'habillage TV avec les lignes blanches et cartouches de zones (sans titre, sans logo et sans légende)">
+                                    <input type="checkbox" id="tiktok-fronts-checkbox" checked>
+                                    <span>📺 Habillage TV (Zonage &amp; Cartouches)</span>
+                                </label>
+                                <label class="amfm-export-opt-row" title="Incruster les pastilles de valeurs sur les villes">
                                     <input type="checkbox" id="tiktok-values-checkbox" checked>
-                                    <span>Incruster les valeurs</span>
+                                    <span>🔢 Valeurs des villes</span>
                                 </label>
                                 <div class="amfm-export-opt-sub">
                                     <select id="tiktok-layout-select" class="amfm-tiktok-layout-select" title="Disposition des valeurs sur les cartes TikTok">
@@ -2700,13 +2704,9 @@
                                         <option value="villes">🏙️ Grandes Villes (33 agglomérations)</option>
                                     </select>
                                 </div>
-                                <label class="amfm-export-opt-row" title="Afficher les lignes TV et cartouches de zones sur les cartes TikTok">
-                                    <input type="checkbox" id="tiktok-fronts-checkbox">
-                                    <span>Lignes TV &amp; Cartouches de zones</span>
-                                </label>
-                                <label class="amfm-export-opt-row" title="Ajouter le bandeau titre, date, logo officiel et légende couleur sur les cartes TikTok (comme en téléchargement traditionnel, mais centré sur France + Corse)">
+                                <label class="amfm-export-opt-row" title="Optionnel : Ajouter les bandeaux traditionnels complets (Titre d'échéance, Logo officiel et Légende couleur)">
                                     <input type="checkbox" id="tiktok-branding-checkbox">
-                                    <span>📺 Habillage TV (Titre, Logo, Légende)</span>
+                                    <span>🏷️ Titre, Logo &amp; Légende (Optionnel)</span>
                                 </label>
                             </div>
                         </div>
@@ -3074,7 +3074,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260918-badge-size-up"></script>
+    <script src="js/arome-map.js?v=20260918-tiktok-clean-tv"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";
