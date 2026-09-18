@@ -4760,16 +4760,19 @@
             );
 
             // 1. Tracé des lignes blanches TV BIEN ÉPAISSES
-            // ponytail: on travaille dans l'espace natif 2200px (transform déjà appliqué)
-            // donc toutes les valeurs sont fixes comme dans le PNG HD
+            // ponytail: on travaille dans l'espace natif 2200px.
+            // zoomFactor compense le zoom régional pour garder une épaisseur constante à l'écran (Option 1).
+            // Sur France entière (scale <= 1), zoomFactor = 1.0 -> rendu 100% identique et intact.
+            var zoomFactor = Math.max(1.0, (transform && transform.scale) ? transform.scale : 1.0);
+
             frontsContext.lineCap = 'round';
             frontsContext.lineJoin = 'round';
             frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
-            frontsContext.shadowBlur = 12;
-            frontsContext.shadowOffsetX = 3.5;
-            frontsContext.shadowOffsetY = 3.5;
+            frontsContext.shadowBlur = 12 / zoomFactor;
+            frontsContext.shadowOffsetX = 3.5 / zoomFactor;
+            frontsContext.shadowOffsetY = 3.5 / zoomFactor;
             frontsContext.strokeStyle = '#ffffff';
-            frontsContext.lineWidth = 7.5;
+            frontsContext.lineWidth = 7.5 / zoomFactor;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
@@ -4785,11 +4788,11 @@
             // 2. Tracer les cartouches de plages TV au cœur de chaque zone
             if (frontsData.badges.length) {
                 frontsContext.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                frontsContext.shadowBlur = 10;
-                frontsContext.shadowOffsetX = 3.5;
-                frontsContext.shadowOffsetY = 3.5;
+                frontsContext.shadowBlur = 10 / zoomFactor;
+                frontsContext.shadowOffsetX = 3.5 / zoomFactor;
+                frontsContext.shadowOffsetY = 3.5 / zoomFactor;
 
-                var fontSize = 30;
+                var fontSize = Math.max(10, Math.round(30 / zoomFactor));
                 frontsContext.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                 frontsContext.textAlign = 'center';
                 frontsContext.textBaseline = 'middle';
@@ -4831,15 +4834,15 @@
                     var by = badge.v * natH;
                     var text = badge.label;
                     var tw = frontsContext.measureText(text).width;
-                    var padX = 16;
-                    var padY = 10;
+                    var padX = 16 / zoomFactor;
+                    var padY = 10 / zoomFactor;
                     var bw = tw + padX * 2;
                     var bh = fontSize + padY * 2;
-                    var rad = 10;
+                    var rad = 10 / zoomFactor;
 
                     frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
                     frontsContext.strokeStyle = '#ffffff';
-                    frontsContext.lineWidth = 2.5;
+                    frontsContext.lineWidth = 2.5 / zoomFactor;
 
                     frontsContext.beginPath();
                     if (frontsContext.roundRect) frontsContext.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
