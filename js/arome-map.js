@@ -4572,10 +4572,17 @@
                 }
             }
 
-            // Collecte des valeurs valides et percentiles robustes (4% et 96%)
+            // Collecte des valeurs valides, extrêmes météo (hotspot/coldspot) et percentiles robustes
             var validVals = [];
+            var maxGridVal = -Infinity, maxGridIdx = -1;
+            var minGridVal = Infinity, minGridIdx = -1;
             for (var fidx = 0; fidx < gw * gh; fidx++) {
-                if (valid[fidx]) validVals.push(field[fidx]);
+                if (valid[fidx]) {
+                    validVals.push(field[fidx]);
+                    var sVal = smoothed[fidx];
+                    if (sVal > maxGridVal) { maxGridVal = sVal; maxGridIdx = fidx; }
+                    if (sVal < minGridVal) { minGridVal = sVal; minGridIdx = fidx; }
+                }
             }
             if (validVals.length < 20) {
                 cachedFrontsKey = key;
@@ -4583,8 +4590,12 @@
                 return cachedFrontsData;
             }
             validVals.sort(function (a, b) { return a - b; });
-            var pMin = validVals[Math.floor(validVals.length * 0.04)];
-            var pMax = validVals[Math.floor(validVals.length * 0.96)];
+            var pMin = validVals[Math.floor(validVals.length * (isTemp ? 0.01 : 0.04))];
+            var pMax = validVals[Math.floor(validVals.length * (isTemp ? 0.99 : 0.96))];
+            if (isTemp) {
+                if (maxGridVal > pMax) pMax = Math.max(pMax, maxGridVal - 0.2);
+                if (minGridVal < pMin) pMin = Math.min(pMin, minGridVal + 0.2);
+            }
             if (pMax <= pMin) pMax = pMin + 1;
 
             // ponytail: alignement strict des lignes de front sur les vrais paliers des cartouches TV
@@ -4641,8 +4652,12 @@
                             var q = [idx];
                             compLabels[idx] = curLbl;
                             var qHead = 0;
+                            var hasMax = (idx === maxGridIdx);
+                            var hasMin = (idx === minGridIdx);
                             while (qHead < q.length) {
                                 var cidx = q[qHead++];
+                                if (cidx === maxGridIdx) hasMax = true;
+                                if (cidx === minGridIdx) hasMin = true;
                                 var cx = cidx % gw;
                                 var cy = Math.floor(cidx / gw);
                                 if (cx > 0) { var n = cidx - 1; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
@@ -4650,8 +4665,16 @@
                                 if (cy > 0) { var n = cidx - gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                                 if (cy < gh - 1) { var n = cidx + gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                             }
-                            if (q.length >= 6) {
-                                components.push({ label: curLbl, size: q.length, bandIdx: bi });
+                            // ponytail: seuil de taille adapté pour ne jamais éliminer les plaines chaudes étroites (Nîmes, Basse vallée du Rhône)
+                            var minCompSize = (hasMax || bi === bands.length - 1) ? 2 : 4;
+                            if (q.length >= minCompSize) {
+                                components.push({
+                                    label: curLbl,
+                                    size: q.length,
+                                    bandIdx: bi,
+                                    containsMax: hasMax,
+                                    containsMin: hasMin
+                                });
                             }
                         }
                     }
@@ -4706,7 +4729,15 @@
                                 maxIdx = f;
                             }
                         }
-                        if (maxD < 0.75 || maxIdx === -1) break;
+                        // Si pôle d'inaccessibilité faible mais zone contenant l'extrême national, utiliser l'emplacement du pic
+                        if (maxD < 0.35 || maxIdx === -1) {
+                            if (compInfo.containsMax && maxGridIdx !== -1 && compLabels[maxGridIdx] === curLbl) {
+                                maxIdx = maxGridIdx;
+                                maxD = 1.0;
+                            } else {
+                                break;
+                            }
+                        }
 
                         var px = maxIdx % gw;
                         var py = Math.floor(maxIdx / gw);
@@ -4766,10 +4797,11 @@
                             }
                         }
 
-                        var isBretagne = isFranceDomain && (px < 32 && py >= 20 && py <= 36);
+                        var isBretagne = isFranceDomain && (px < 35 && py >= 18 && py <= 38);
                         // Recentrage de la Bretagne vers l'intérieur (Loudéac/Centre-Bretagne) pour éviter la côte
-                        var finalPx = isBretagne ? Math.max(16, px) : px;
-                        var shiftedPy = Math.max(2, py - 1.3);
+                        var finalPx = isBretagne ? Math.max(17, px) : px;
+                        // Ne pas surélever vers le nord si on est sur la frange littorale sud (Nîmes / Camargue / PACA)
+                        var shiftedPy = (py > 54) ? py : Math.max(2, py - 1.0);
 
                         badges.push({
                             u: finalPx / (gw - 1),
@@ -4777,6 +4809,8 @@
                             label: label,
                             clearance: maxD,
                             isBretagne: isBretagne,
+                            isHotspot: !!compInfo.containsMax,
+                            isColdspot: !!compInfo.containsMin,
                             compId: curLbl,
                             compSize: cSize
                         });
@@ -4795,6 +4829,7 @@
             }
 
             // Éliminer les chevauchements en garantissant impérativement que CHAQUE zone a son cartouche
+            // et que le point le plus chaud de France (Nîmes, Basse vallée du Rhône, PACA) est TOUJOURS présent
             var bretagneBadges = isFranceDomain ? badges.filter(function (b) { return b.isBretagne; }) : [];
             var otherBadges = isFranceDomain ? badges.filter(function (b) { return !b.isBretagne; }) : badges;
             var filteredBadges = [];
@@ -4803,8 +4838,18 @@
                 filteredBadges.push(bretagneBadges[0]);
             }
 
-            // Trier pour prioriser d'abord le meilleur cartouche de chaque composante distincte
-            otherBadges.sort(function (a, b) { return b.clearance - a.clearance; });
+            // Trier pour prioriser impérativement :
+            // 1. Le pôle de chaleur maximale nationale (Hotspot)
+            // 2. Le pôle de fraîcheur minimale nationale (Coldspot)
+            // 3. Les zones les plus nettes et profondes (clearance)
+            otherBadges.sort(function (a, b) {
+                if (a.isHotspot && !b.isHotspot) return -1;
+                if (!a.isHotspot && b.isHotspot) return 1;
+                if (a.isColdspot && !b.isColdspot) return -1;
+                if (!a.isColdspot && b.isColdspot) return 1;
+                return b.clearance - a.clearance;
+            });
+
             var coveredComps = new Set();
             if (filteredBadges.length && filteredBadges[0].compId) {
                 coveredComps.add(filteredBadges[0].compId);
@@ -4819,7 +4864,17 @@
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    if (du * du + dv * dv < 49) { // ~7 pixels de grille mini entre zones
+                    // ponytail: les cartouches TV sont des rectangles allongés (~5:1).
+                    // Distance elliptique (7 px horizontal, 3.2 px vertical)
+                    // pour permettre la coexistence naturelle Nord-Sud (ex: Massif Central et Plaine de Nîmes) sans chevauchement.
+                    var normDist = (du * du) / 49.0 + (dv * dv) / 10.24;
+                    if (normDist < 1.0) {
+                        if (candidate.isHotspot) {
+                            // Le pôle maximal national évince tout badge secondaire concurrent
+                            filteredBadges.splice(fi, 1);
+                            fi--;
+                            continue;
+                        }
                         tooClose = true;
                         break;
                     }
@@ -4830,7 +4885,7 @@
                 }
             }
 
-            // Passe 2 : Ajouter un second cartouche UNIQUEMENT pour les zones géantes très espacées (> 16 pixels / ~300 km)
+            // Passe 2 : Ajouter un second cartouche UNIQUEMENT pour les zones géantes très espacées (> 300 km)
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
                 if (filteredBadges.indexOf(candidate) !== -1) continue;
@@ -4839,13 +4894,44 @@
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    var minD2 = (candidate.label === filteredBadges[fi].label) ? 256 : 64; // 16 px si même valeur (anti-doublon Sud-Ouest), 8 px sinon
-                    if (du * du + dv * dv < minD2) {
+                    var isSame = (candidate.label === filteredBadges[fi].label);
+                    var normDist = (du * du) / (isSame ? 256.0 : 49.0) + (dv * dv) / (isSame ? 64.0 : 10.24);
+                    if (normDist < 1.0) {
                         tooClose = true;
                         break;
                     }
                 }
                 if (!tooClose) filteredBadges.push(candidate);
+            }
+
+            // ponytail: Garantie absolue TV météo : le pôle maximal de France (ex: Nîmes / PACA)
+            // DOIT TOUJOURS avoir son cartouche visible sur la carte
+            if (isTemp && maxGridIdx !== -1) {
+                var hasHotspot = filteredBadges.some(function (b) { return b.isHotspot; });
+                if (!hasHotspot) {
+                    var hx = maxGridIdx % gw;
+                    var hy = Math.floor(maxGridIdx / gw);
+                    var s0 = Math.floor(maxGridVal / stepSize) * stepSize;
+                    var s1 = s0 + stepSize;
+                    var hotBadge = {
+                        u: hx / (gw - 1),
+                        v: (hy > 54 ? hy : Math.max(2, hy - 1.0)) / (gh - 1),
+                        label: s0 + ' à ' + s1 + ' °C',
+                        clearance: 99,
+                        isBretagne: false,
+                        isHotspot: true,
+                        isColdspot: false,
+                        compId: 99999,
+                        compSize: 10
+                    };
+                    filteredBadges = filteredBadges.filter(function (fb) {
+                        var du = (hotBadge.u - fb.u) * gw;
+                        var dv = (hotBadge.v - fb.v) * gh;
+                        var normDist = (du * du) / 49.0 + (dv * dv) / 10.24;
+                        return normDist >= 1.0;
+                    });
+                    filteredBadges.unshift(hotBadge);
+                }
             }
 
             badges = filteredBadges.slice(0, 16);
