@@ -1489,7 +1489,7 @@
                                         }
                                         allExportBadges.push({
                                             u: 1760 / 2200.0,
-                                            v: 1334 / natH,
+                                            v: 1310 / natH,
                                             label: cLabel,
                                             isCorse: true
                                         });
@@ -2263,9 +2263,8 @@
                                 mfCtx.drawImage(assets.maskMainland, 0, 0);
                                 compCtx.drawImage(mfCanvas, 0, 0);
 
-                                // Cartouches de plages automatiques TV si "Valeurs" n'est PAS coché (pour ne pas surcharger)
-                                var includeValuesCheckbox = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
-                                if (!includeValuesCheckbox && frontsData.badges.length) {
+                                // Cartouches de plages automatiques TV
+                                if (frontsData.badges.length) {
                                     compCtx.save();
                                     compCtx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                                     compCtx.shadowBlur = 12;
@@ -2278,11 +2277,11 @@
 
                                     var allBadgesToDraw = frontsData.badges.slice();
 
-                                    // Ajout propre d'un cartouche sur la Corse si disponible
+                                    // Ajout propre d'un cartouche sur la Corse si disponible (remonté à 1310)
                                     if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
                                         try {
                                             var corseSampler = cCanvas.getContext('2d');
-                                            var cPix = corseSampler.getImageData(1760, 1334, 1, 1).data;
+                                            var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
                                             if (cPix[3] > 20) {
                                                 var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
                                                 if (cVal !== null && Number.isFinite(cVal)) {
@@ -2301,7 +2300,7 @@
                                                     }
                                                     allBadgesToDraw.push({
                                                         u: 1610 / 2200,
-                                                        v: 1334 / 1640,
+                                                        v: 1310 / 1640,
                                                         label: cLabel,
                                                         isCorse: true
                                                     });
@@ -2568,7 +2567,7 @@
                             ttCtx.shadowOffsetX = 0;
                             ttCtx.shadowOffsetY = 0;
                             
-                             for (var i = 0; i < valsData.length; i++) {
+                            for (var i = 0; i < valsData.length; i++) {
                                 var v = valsData[i];
                                 if (isTemp) {
                                     if (v.val === minVal) ttCtx.fillStyle = '#0078D7'; // Bleu = Tn
@@ -2579,6 +2578,145 @@
                                 }
                                 ttCtx.fillText(v.text, v.tx, v.ty);
                             }
+                        }
+
+                        // 6. Optionnelle : Incrustation de l'Habillage Broadcast complet (Titre, Logo, Légende)
+                        // comme en téléchargement traditionnel mais adapté au format vertical TikTok (France + Corse uniquement)
+                        var includeBranding = document.getElementById('tiktok-branding-checkbox') && document.getElementById('tiktok-branding-checkbox').checked;
+                        if (includeBranding) {
+                            ttCtx.save();
+
+                            // A. Cartouche Titre en haut à gauche
+                            var layer = manifest && manifest.layers && manifest.layers[currentLayer];
+                            var prettyLabel = layer ? layer.label : '';
+                            var prettyUnit = layer && layer.unit ? layer.unit : '';
+                            if (typeof window.getLayerPalette === 'function') {
+                                try {
+                                    var prettyPal = window.getLayerPalette(currentLayer);
+                                    if (prettyPal) {
+                                        prettyLabel = prettyPal.label || prettyLabel;
+                                        prettyUnit = prettyPal.unit !== undefined ? prettyPal.unit : prettyUnit;
+                                    }
+                                } catch (e) {}
+                            }
+
+                            var fullDateText = '';
+                            if (step && step.valid_time) {
+                                try {
+                                    fullDateText = validityFormat.format(new Date(step.valid_time)).replace(':', 'h');
+                                } catch (e) {
+                                    fullDateText = new Date(step.valid_time).toLocaleDateString('fr-FR');
+                                }
+                            }
+                            var leadTag = 'J+' + index;
+                            var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
+                            var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
+
+                            var boxX = 24, boxY = 48, boxW = 680, boxH = 175;
+                            ttCtx.fillStyle = 'rgba(7, 11, 20, 0.94)';
+                            ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
+                            ttCtx.lineWidth = 3;
+                            ttCtx.beginPath();
+                            if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(boxX, boxY, boxW, boxH, 16);
+                            else ttCtx.rect(boxX, boxY, boxW, boxH);
+                            ttCtx.fill();
+                            ttCtx.stroke();
+
+                            ttCtx.textAlign = 'left';
+                            ttCtx.textBaseline = 'alphabetic';
+                            ttCtx.fillStyle = '#ffffff';
+                            ttCtx.font = '700 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            ttCtx.fillText(prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''), boxX + 24, boxY + 48);
+
+                            ttCtx.fillStyle = '#00d2ff';
+                            ttCtx.font = '700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            ttCtx.fillText(modelTitle + (runLabel ? ' • ' + runLabel : ''), boxX + 24, boxY + 90);
+
+                            ttCtx.fillStyle = '#ffffff';
+                            ttCtx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            ttCtx.fillText(fullDateText + ' (' + leadTag + ')', boxX + 24, boxY + 142);
+
+                            // B. Logo Météo-Climat Pro / Monsieur Météo en haut à droite
+                            if (logoImage && logoImage.complete && logoImage.naturalWidth) {
+                                var logoW = 320;
+                                var logoH = Math.round(logoW * logoImage.naturalHeight / logoImage.naturalWidth);
+                                var logoX = 1080 - 24 - logoW;
+                                var logoY = boxY + (boxH - logoH) / 2;
+                                ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                ttCtx.shadowBlur = 12;
+                                ttCtx.shadowOffsetX = 3;
+                                ttCtx.shadowOffsetY = 3;
+                                ttCtx.drawImage(logoImage, logoX, logoY, logoW, logoH);
+                            }
+
+                            // C. Légende colorimétrique officielle en bas
+                            var z500Embed = (currentLayer === 'geopotentiel_500' || currentLayer === 'geopotentiel_500_meteociel');
+                            if (layer && !z500Embed && typeof window.getLayerPalette === 'function' && typeof window.paletteTicks === 'function') {
+                                try {
+                                    var legW = 960;
+                                    var legH = 100;
+                                    var legX = (1080 - legW) / 2;
+                                    var legY = 1580;
+
+                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+                                    ttCtx.shadowBlur = 12;
+                                    ttCtx.fillStyle = 'rgba(7, 11, 20, 0.95)';
+                                    ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.7)';
+                                    ttCtx.lineWidth = 2.5;
+                                    ttCtx.beginPath();
+                                    if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(legX, legY, legW, legH, 18);
+                                    else ttCtx.rect(legX, legY, legW, legH);
+                                    ttCtx.fill();
+                                    ttCtx.stroke();
+
+                                    ttCtx.shadowColor = 'transparent';
+                                    ttCtx.shadowBlur = 0;
+                                    ttCtx.fillStyle = '#ffffff';
+                                    ttCtx.font = '700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                                    ttCtx.textAlign = 'center';
+                                    ttCtx.textBaseline = 'alphabetic';
+                                    ttCtx.fillText(prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''), legX + legW / 2, legY + 34);
+
+                                    var pal = window.getLayerPalette(currentLayer);
+                                    var stops = pal && pal.stops ? pal.stops : [];
+                                    var low = (pal && pal.transparent_below !== null && pal.transparent_below !== undefined) ? pal.transparent_below : (stops.length ? stops[0].value : 0);
+                                    var max = stops.length ? stops[stops.length - 1].value : 1;
+                                    var span = (max - low) || 1;
+                                    var barX = legX + 30;
+                                    var barW = legW - 60;
+                                    var barY = legY + 48;
+
+                                    var gradient = ttCtx.createLinearGradient(barX, 0, barX + barW, 0);
+                                    stops.forEach(function (s) {
+                                        var pos = Math.max(0, Math.min(1, (Number(s.value) - low) / span));
+                                        gradient.addColorStop(pos, s.color);
+                                    });
+                                    ttCtx.fillStyle = gradient;
+                                    ttCtx.beginPath();
+                                    if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(barX, barY, barW, 20, 10);
+                                    else ttCtx.rect(barX, barY, barW, 20);
+                                    ttCtx.fill();
+                                    ttCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                                    ttCtx.lineWidth = 1.5;
+                                    ttCtx.stroke();
+
+                                    ttCtx.fillStyle = '#eaf1ff';
+                                    ttCtx.font = '700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                                    var ticks = window.paletteTicks(currentLayer);
+                                    ticks.forEach(function (tick, i) {
+                                        var tx = barX + (ticks.length > 1 ? i / (ticks.length - 1) : 0.5) * barW;
+                                        ttCtx.fillText(String(tick), tx, barY + 38);
+                                    });
+                                } catch (eLeg) {}
+                            }
+
+                            // D. Signature bas
+                            ttCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                            ttCtx.font = '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                            ttCtx.textAlign = 'center';
+                            ttCtx.fillText('MÉTÉO FRANCE & CORSE • MÉTÉO-CLIMAT PRO', 540, 1860);
+
+                            ttCtx.restore();
                         }
 
                         var dateStr = '';
@@ -4569,12 +4707,13 @@
                             }
                         }
                         sampleVals.sort(function (a, b) { return a - b; });
-                        var medVal = sampleVals.length ? sampleVals[Math.floor(sampleVals.length / 2)] : smoothed[maxIdx];
+                        // ponytail: 65ème percentile pour remonter les valeurs des cartouches et refléter fidèlement les maxis de la masse d'air
+                        var medVal = sampleVals.length ? sampleVals[Math.floor(sampleVals.length * 0.65)] : smoothed[maxIdx];
 
                         var label = '';
                         if (isTemp) {
                             var stepSize = 2;
-                            var v0 = Math.floor(medVal / stepSize) * stepSize;
+                            var v0 = Math.floor((medVal + 0.3) / stepSize) * stepSize;
                             var v1 = v0 + stepSize;
                             if (band.type === 'min') label = '<= ' + v1 + ' °C';
                             else if (band.type === 'max') label = '> ' + v0 + ' °C';
@@ -4606,9 +4745,11 @@
 
                         var isBretagne = isFranceDomain && (px < 30 && py >= 20 && py <= 36);
 
+                        // ponytail: remonter la position Y des cartouches de 1.3 pixel de grille (~25px natifs) vers le nord
+                        var shiftedPy = Math.max(2, py - 1.3);
                         badges.push({
                             u: px / (gw - 1),
-                            v: py / (gh - 1),
+                            v: shiftedPy / (gh - 1),
                             label: label,
                             clearance: maxD,
                             isBretagne: isBretagne
@@ -4820,7 +4961,7 @@
                                 }
                                 allBadges.push({
                                     u: 1760 / 2200.0,
-                                    v: 1334 / natH,
+                                    v: 1310 / natH,
                                     label: cLabel
                                 });
                             }
