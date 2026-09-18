@@ -355,26 +355,26 @@
 
         .amfm-select-layer {
             flex: 1.1;
-            min-width: 145px;
-            max-width: 185px;
+            min-width: 135px;
+            max-width: 180px;
         }
         .amfm-select-model {
             flex: 0.9;
-            min-width: 130px;
-            max-width: 160px;
+            min-width: 120px;
+            max-width: 155px;
             background: rgba(0, 119, 255, 0.18);
             border-color: rgba(0, 119, 255, 0.55);
             font-weight: 800;
         }
         .amfm-select-region {
             flex: 0.8;
-            min-width: 105px;
-            max-width: 130px;
+            min-width: 100px;
+            max-width: 125px;
         }
         .amfm-select-sea {
             flex: 0.7;
-            min-width: 95px;
-            max-width: 115px;
+            min-width: 90px;
+            max-width: 110px;
         }
 
         /* Boutons d'Action compacts */
@@ -1273,6 +1273,20 @@
             }
         }
 
+        /* Masquage des libellés texte des boutons sur les écrans ≤1400px (laptop standard) */
+        @media (max-width: 1400px) {
+            .amfm-btn-toggle span,
+            .amfm-btn-download span {
+                display: none !important;
+            }
+            .amfm-btn-toggle,
+            .amfm-btn-download {
+                width: 36px !important;
+                min-width: 36px !important;
+                padding: 0 !important;
+            }
+        }
+
         /* 📱 RESPONSIVE & COMPACT NAVIGATION BAR - Uniquement sur petits écrans (<= 1024px) */
         @media (max-width: 1024px) {
             .amfm-btn-download span,
@@ -1596,11 +1610,14 @@
         /* 🔍 BARRE DE RECHERCHE MONDIALE (Adresse, Ville, Pays) */
         .amfm-search-wrapper {
             position: relative;
-            flex: 0.9;
-            min-width: 120px;
-            max-width: 175px;
+            flex-shrink: 0;
+            width: 160px;
+            transition: width 0.25s ease;
             display: flex;
             align-items: center;
+        }
+        .amfm-search-wrapper:focus-within {
+            width: 240px;
         }
         .amfm-search-icon {
             position: absolute;
@@ -2605,14 +2622,8 @@
                         </optgroup>
                     </select>
 
-                    <!-- Barre de Recherche Mondiale (Adresse, Ville, Pays) -->
-                    <div class="amfm-search-wrapper" id="amfm-search-wrapper">
-                        <i class="fa-solid fa-magnifying-glass amfm-search-icon" aria-hidden="true"></i>
-                        <input type="text" id="amfm-search-input" class="amfm-search-input" placeholder="Rechercher une adresse, ville, pays…" autocomplete="off" spellcheck="false" aria-label="Recherche mondiale par adresse, ville ou pays">
-                        <button type="button" id="amfm-search-clear" class="amfm-search-clear" style="display:none;" title="Effacer la recherche" aria-label="Effacer">✕</button>
-                        <div id="amfm-search-dropdown" class="amfm-search-dropdown" style="display:none;" role="listbox"></div>
-                    </div>
                 </div>
+
 
                 <!-- Droite : Outils Carte + Téléchargements (HD & TikTok) + Outils -->
                 <div class="amfm-nav-actions">
@@ -2695,6 +2706,14 @@
                                 </label>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Barre de Recherche Mondiale (Adresse, Ville, Pays) -->
+                    <div class="amfm-search-wrapper" id="amfm-search-wrapper">
+                        <i class="fa-solid fa-magnifying-glass amfm-search-icon" aria-hidden="true"></i>
+                        <input type="text" id="amfm-search-input" class="amfm-search-input" placeholder="Rechercher…" autocomplete="off" spellcheck="false" aria-label="Recherche mondiale par adresse, ville ou pays">
+                        <button type="button" id="amfm-search-clear" class="amfm-search-clear" style="display:none;" title="Effacer la recherche" aria-label="Effacer">✕</button>
+                        <div id="amfm-search-dropdown" class="amfm-search-dropdown" style="display:none;" role="listbox"></div>
                     </div>
 
                     <div class="amfm-nav-sep"></div>
@@ -3051,7 +3070,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260918-fix-zones"></script>
+    <script src="js/arome-map.js?v=20260918-nav-search-fix"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";
