@@ -4635,14 +4635,14 @@
                                 if (cy > 0) { var n = cidx - gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                                 if (cy < gh - 1) { var n = cidx + gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                             }
-                            if (q.length >= 10) {
-                                components.push({ label: curLbl, size: q.length });
+                            if (q.length >= 6) {
+                                components.push({ label: curLbl, size: q.length, bandIdx: bi });
                             }
                         }
                     }
                 }
 
-                // 2. Pour chaque composante significative, trouver son pôle d'inaccessibilité (distance transform)
+                // 2. Pour chaque zone (composante), trouver son pôle d'inaccessibilité (centre le plus profond)
                 for (var ci = 0; ci < components.length; ci++) {
                     var compInfo = components[ci];
                     var curLbl = compInfo.label;
@@ -4681,8 +4681,8 @@
                         }
                     }
 
-                    // Trouver les centres profonds (plusieurs pôles pour les lobes étendus)
-                    var maxPoles = Math.max(2, Math.min(5, Math.round(cSize / 80)));
+                    // 1 pôle garanti pour chaque zone, plus un second uniquement pour les très grandes zones
+                    var maxPoles = cSize > 250 ? 2 : 1;
                     for (var pi = 0; pi < maxPoles; pi++) {
                         var maxD = 0, maxIdx = -1;
                         for (var f = 0; f < gw * gh; f++) {
@@ -4691,7 +4691,7 @@
                                 maxIdx = f;
                             }
                         }
-                        if (maxD < 0.85 || maxIdx === -1) break;
+                        if (maxD < 0.75 || maxIdx === -1) break;
 
                         var px = maxIdx % gw;
                         var py = Math.floor(maxIdx / gw);
@@ -4746,21 +4746,23 @@
 
                         var isBretagne = isFranceDomain && (px < 30 && py >= 20 && py <= 36);
 
-                        // ponytail: remonter la position Y des cartouches de 1.3 pixel de grille (~25px natifs) vers le nord
+                        // Position remontée de 1.3 pixel de grille vers le nord
                         var shiftedPy = Math.max(2, py - 1.3);
                         badges.push({
                             u: px / (gw - 1),
                             v: shiftedPy / (gh - 1),
                             label: label,
                             clearance: maxD,
-                            isBretagne: isBretagne
+                            isBretagne: isBretagne,
+                            compId: curLbl,
+                            compSize: cSize
                         });
 
-                        // Rayon d'exclusion (10 pixels) pour laisser respirer les péninsules adjacentes
-                        for (var ey = Math.max(0, py - 10); ey <= Math.min(gh - 1, py + 10); ey++) {
-                            for (var ex = Math.max(0, px - 10); ex <= Math.min(gw - 1, px + 10); ex++) {
+                        // Rayon d'exclusion intra-composante (6 pixels au lieu de 10)
+                        for (var ey = Math.max(0, py - 7); ey <= Math.min(gh - 1, py + 7); ey++) {
+                            for (var ex = Math.max(0, px - 7); ex <= Math.min(gw - 1, px + 7); ex++) {
                                 var edx = ex - px, edy = ey - py;
-                                if (edx * edx + edy * edy <= 100) {
+                                if (edx * edx + edy * edy <= 49) {
                                     dist[ey * gw + ex] = 0;
                                 }
                             }
@@ -4769,7 +4771,7 @@
                 }
             }
 
-            // Éliminer les chevauchements en garantissant impérativement le cartouche Ouest/Bretagne s'il existe
+            // Éliminer les chevauchements en garantissant impérativement que CHAQUE zone a son cartouche
             var bretagneBadges = isFranceDomain ? badges.filter(function (b) { return b.isBretagne; }) : [];
             var otherBadges = isFranceDomain ? badges.filter(function (b) { return !b.isBretagne; }) : badges;
             var filteredBadges = [];
@@ -4777,21 +4779,53 @@
                 bretagneBadges.sort(function (a, b) { return b.clearance - a.clearance; });
                 filteredBadges.push(bretagneBadges[0]);
             }
+
+            // Trier pour prioriser d'abord le meilleur cartouche de chaque composante distincte
             otherBadges.sort(function (a, b) { return b.clearance - a.clearance; });
+            var coveredComps = new Set();
+            if (filteredBadges.length && filteredBadges[0].compId) {
+                coveredComps.add(filteredBadges[0].compId);
+            }
+
+            // Passe 1 : Garantir un cartouche pour chaque composante (zone)
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
+                if (coveredComps.has(candidate.compId)) continue;
+
                 var tooClose = false;
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    if (du * du + dv * dv < 100) { // ~10 pixels de grille
+                    if (du * du + dv * dv < 36) { // ~6 pixels de grille mini pour éviter superposition directe
+                        tooClose = true;
+                        break;
+                    }
+                }
+                if (!tooClose) {
+                    filteredBadges.push(candidate);
+                    coveredComps.add(candidate.compId);
+                }
+            }
+
+            // Passe 2 : Ajouter les seconds cartouches utiles pour les très grandes zones
+            for (var bi = 0; bi < otherBadges.length; bi++) {
+                var candidate = otherBadges[bi];
+                if (filteredBadges.indexOf(candidate) !== -1) continue;
+
+                var tooClose = false;
+                for (var fi = 0; fi < filteredBadges.length; fi++) {
+                    var du = (candidate.u - filteredBadges[fi].u) * gw;
+                    var dv = (candidate.v - filteredBadges[fi].v) * gh;
+                    if (du * du + dv * dv < 49) {
                         tooClose = true;
                         break;
                     }
                 }
                 if (!tooClose) filteredBadges.push(candidate);
             }
-            badges = filteredBadges.slice(0, 8);
+
+            // ponytail: chaque zone doit avoir son cartouche, limite portée à 20 pour couvrir l'intégralité du territoire
+            badges = filteredBadges.slice(0, 20);
 
             function interpolate(v1, v2, th) {
                 if (Math.abs(v2 - v1) < 1e-6) return 0.5;
