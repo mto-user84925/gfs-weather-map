@@ -2223,8 +2223,11 @@
                         // Frontières départementales vectorielles nettes
                         compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
 
-                        // 2bis. Incrustation des LIGNES TV épaisses + Cartouches automatiques (optionnel)
-                        var includeFronts = document.getElementById('tiktok-fronts-checkbox') && document.getElementById('tiktok-fronts-checkbox').checked;
+                        // 2bis. Incrustation des LIGNES TV épaisses + Cartouches automatiques (Habillage TV)
+                        var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
+                        var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'clean';
+                        var includeFronts = true; // Toujours le zonage TV dans les deux styles TikTok !
+                        var includeBranding = (tiktokStyle === 'broadcast');
                         if (includeFronts) {
                             var frontsData = computeTvFrontsData(img, currentLayer, assets ? assets.maskMainland : null);
                             if (frontsData && (frontsData.lines.length || frontsData.badges.length)) {
@@ -2581,8 +2584,7 @@
                         }
 
                         // 6. Optionnelle : Incrustation de l'Habillage Broadcast complet (Titre, Logo, Légende)
-                        // comme en téléchargement traditionnel mais adapté au format vertical TikTok (France + Corse uniquement)
-                        var includeBranding = document.getElementById('tiktok-branding-checkbox') && document.getElementById('tiktok-branding-checkbox').checked;
+                        // si l'utilisateur a choisi le style "Complet Broadcast"
                         if (includeBranding) {
                             ttCtx.save();
 
