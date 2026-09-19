@@ -2345,9 +2345,8 @@
                         ttCanvas.width = 1080;
                         ttCanvas.height = 1920;
                         var ttCtx = ttCanvas.getContext('2d');
-                        // Fond broadcast studio profond #080d1a identique au téléchargement classique HD
-                        ttCtx.fillStyle = '#080d1a';
-                        ttCtx.fillRect(0, 0, 1080, 1920);
+                        // Fond 100% transparent natif pour incrustation vidéo / broadcast
+                        ttCtx.clearRect(0, 0, 1080, 1920);
 
                         var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
                         var targetW = 1040;
