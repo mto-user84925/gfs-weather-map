@@ -2223,14 +2223,15 @@
                         // Frontières départementales vectorielles nettes
                         compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
 
-                        // 2bis. Incrustation des LIGNES TV épaisses + Cartouches automatiques (Habillage TV)
+                        // 2bis. Incrustation des LIGNES TV épaisses (Habillage TV)
                         var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
                         var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'clean';
                         var includeFronts = true; // Toujours le zonage TV dans les deux styles TikTok !
                         var includeBranding = (tiktokStyle === 'broadcast');
+                        var frontsData = null;
                         if (includeFronts) {
-                            var frontsData = computeTvFrontsData(img, currentLayer, assets ? assets.maskMainland : null);
-                            if (frontsData && (frontsData.lines.length || frontsData.badges.length)) {
+                            frontsData = computeTvFrontsData(img, currentLayer, assets ? assets.maskMainland : null);
+                            if (frontsData && frontsData.lines && frontsData.lines.length) {
                                 var fCanvas = document.createElement('canvas');
                                 fCanvas.width = 2200;
                                 fCanvas.height = 1640;
@@ -2265,91 +2266,17 @@
                                 mfCtx.globalCompositeOperation = 'destination-in';
                                 mfCtx.drawImage(assets.maskMainland, 0, 0);
                                 compCtx.drawImage(mfCanvas, 0, 0);
-
-                                // Cartouches de plages automatiques TV
-                                if (frontsData.badges.length) {
-                                    compCtx.save();
-                                    compCtx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-                                    compCtx.shadowBlur = 12;
-                                    compCtx.shadowOffsetX = 4;
-                                    compCtx.shadowOffsetY = 4;
-                                    var fontSize = 58;
-                                    compCtx.font = 'bold ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                    compCtx.textAlign = 'center';
-                                    compCtx.textBaseline = 'middle';
-
-                                    var allBadgesToDraw = frontsData.badges.slice();
-
-                                    // Ajout propre d'un cartouche sur la Corse si disponible (remonté à 1310)
-                                    if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
-                                        try {
-                                            var corseSampler = cCanvas.getContext('2d');
-                                            var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
-                                            if (cPix[3] > 20) {
-                                                var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
-                                                if (cVal !== null && Number.isFinite(cVal)) {
-                                                    var cLabel = '';
-                                                    if (currentLayer.indexOf('temperature') !== -1) {
-                                                        var c0 = Math.floor(cVal / 2) * 2;
-                                                        var c1 = c0 + 2;
-                                                        cLabel = c0 + ' à ' + c1 + ' °C';
-                                                    } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
-                                                        cLabel = Math.round(cVal) + ' mm';
-                                                    } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
-                                                        cLabel = Math.round(cVal) + ' km/h';
-                                                    } else {
-                                                        var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
-                                                        cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
-                                                    }
-                                                    allBadgesToDraw.push({
-                                                        u: 1610 / 2200,
-                                                        v: 1310 / 1640,
-                                                        label: cLabel,
-                                                        isCorse: true
-                                                    });
-                                                }
-                                            }
-                                        } catch(eCorse) {}
-                                    }
-
-                                    for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
-                                        var badge = allBadgesToDraw[bi];
-                                        var bx = badge.u * 2200;
-                                        var by = badge.v * 1640;
-                                        var text = badge.label;
-                                        var curFontSize = fontSize; // Même taille pour tous les cartouches TikTok
-                                        compCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                        var tw = compCtx.measureText(text).width;
-                                        var padX = 24;
-                                        var padY = 15;
-                                        var bw = Math.max(220, tw + padX * 2);
-                                        var bh = curFontSize + padY * 2;
-                                        var rad = 16;
-
-                                        compCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
-                                        compCtx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-                                        compCtx.lineWidth = 2.5;
-
-                                        compCtx.beginPath();
-                                        if (compCtx.roundRect) compCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
-                                        else compCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
-                                        compCtx.fill();
-                                        compCtx.stroke();
-
-                                        compCtx.fillStyle = '#ffffff';
-                                        compCtx.fillText(text, bx, by);
-                                    }
-                                    compCtx.restore();
-                                }
                             }
                         }
 
-                        // 4. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
+                        // 3. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
                         var ttCanvas = document.createElement('canvas');
                         ttCanvas.width = 1080;
                         ttCanvas.height = 1920;
                         var ttCtx = ttCanvas.getContext('2d');
-                        ttCtx.clearRect(0, 0, 1080, 1920);
+                        // Fond broadcast studio profond #080d1a identique au téléchargement classique HD
+                        ttCtx.fillStyle = '#080d1a';
+                        ttCtx.fillRect(0, 0, 1080, 1920);
 
                         var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
                         var targetW = 1040;
@@ -2358,6 +2285,131 @@
                         var targetY = Math.round((1920 - targetH) / 2);
 
                         ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+
+                        // 4. Cartouches TV broadcast automatiques vectoriels en direct sur ttCanvas
+                        // ponytail: tracé direct en 1080p pour une netteté maximale et anti-collision stricte (0 superposition)
+                        var ttOccupied = [];
+                        if (includeBranding) {
+                            ttOccupied.push({ left: 0, right: 1080, top: 0, bottom: 250 });
+                            ttOccupied.push({ left: 0, right: 1080, top: 1560, bottom: 1920 });
+                        }
+
+                        if (includeFronts && frontsData && frontsData.badges && frontsData.badges.length) {
+                            var allBadgesToDraw = frontsData.badges.slice();
+
+                            // Ajout cartouche Corse propre si disponible (coordonnées Corse décalée)
+                            if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
+                                try {
+                                    var corseSampler = cCanvas.getContext('2d');
+                                    var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
+                                    if (cPix[3] > 20) {
+                                        var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
+                                        if (cVal !== null && Number.isFinite(cVal)) {
+                                            var cLabel = '';
+                                            if (currentLayer.indexOf('temperature') !== -1) {
+                                                var c0 = Math.floor(cVal / 2) * 2;
+                                                var c1 = c0 + 2;
+                                                cLabel = c0 + ' à ' + c1 + ' °C';
+                                            } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
+                                                cLabel = Math.round(cVal) + ' mm';
+                                            } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                                cLabel = Math.round(cVal) + ' km/h';
+                                            } else {
+                                                var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                                cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                            }
+                                            allBadgesToDraw.push({
+                                                u: 1760 / 2200,
+                                                v: 1310 / 1640,
+                                                label: cLabel,
+                                                isCorse: true
+                                            });
+                                        }
+                                    }
+                                } catch(eCorse) {}
+                            }
+
+                            // Priorité absolue : 1. Hotspot maximal national (Nîmes / PACA), 2. Corse, 3. Coldspot, 4. Reste
+                            allBadgesToDraw.sort(function(a, b) {
+                                if (a.isHotspot && !b.isHotspot) return -1;
+                                if (!a.isHotspot && b.isHotspot) return 1;
+                                if (a.isCorse && !b.isCorse) return -1;
+                                if (!a.isCorse && b.isCorse) return 1;
+                                if (a.isColdspot && !b.isColdspot) return -1;
+                                if (!a.isColdspot && b.isColdspot) return 1;
+                                return (b.clearance || 0) - (a.clearance || 0);
+                            });
+
+                            var bFontSize = 34;
+                            ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+                            for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
+                                var badge = allBadgesToDraw[bi];
+                                var cx = badge.u * 2200;
+                                var cy = badge.v * 1640;
+                                if (badge.isCorse) cx -= 150;
+                                var bx = targetX + (cx - cropX) * (targetW / cropW);
+                                var by = targetY + (cy - cropY) * (targetH / cropH);
+
+                                if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
+
+                                var text = badge.label;
+                                ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                var tw = ttCtx.measureText(text).width;
+                                var padX = 20;
+                                var padY = 11;
+                                var bw = Math.max(175, tw + padX * 2);
+                                var bh = bFontSize + padY * 2;
+                                var rad = 14;
+
+                                var bRect = {
+                                    left: bx - bw / 2 - 8,
+                                    right: bx + bw / 2 + 8,
+                                    top: by - bh / 2 - 8,
+                                    bottom: by + bh / 2 + 8
+                                };
+
+                                var clash = false;
+                                for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                    var occ = ttOccupied[oi];
+                                    if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                        clash = true;
+                                        break;
+                                    }
+                                }
+                                if (clash) continue;
+                                ttOccupied.push(bRect);
+
+                                ttCtx.save();
+                                ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                ttCtx.shadowBlur = 10;
+                                ttCtx.shadowOffsetX = 3.5;
+                                ttCtx.shadowOffsetY = 3.5;
+
+                                ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                                ttCtx.strokeStyle = '#ffffff';
+                                ttCtx.lineWidth = 2.5;
+
+                                ttCtx.beginPath();
+                                if (typeof ttCtx.roundRect === 'function') {
+                                    ttCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                } else {
+                                    ttCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                                }
+                                ttCtx.fill();
+                                ttCtx.stroke();
+
+                                ttCtx.shadowColor = 'transparent';
+                                ttCtx.shadowBlur = 0;
+                                ttCtx.shadowOffsetX = 0;
+                                ttCtx.shadowOffsetY = 0;
+                                ttCtx.fillStyle = '#ffffff';
+                                ttCtx.textAlign = 'center';
+                                ttCtx.textBaseline = 'middle';
+                                ttCtx.fillText(text, bx, by);
+                                ttCtx.restore();
+                            }
+                        }
 
                         // 5. Incrustation des valeurs numériques façon TV (disponible seule ou avec les lignes TV)
                         var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
@@ -2445,6 +2497,19 @@
 
                                     var tx = targetX + (cx - cropX) * (targetW / cropW);
                                     var ty = targetY + (cy - cropY) * (targetH / cropH);
+
+                                    // Protection anti-collision avec les cartouches TV déjà placés
+                                    var bRect = { left: tx - 42, right: tx + 42, top: ty - 28, bottom: ty + 28 };
+                                    var clash = false;
+                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                        var occ = ttOccupied[oi];
+                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                            clash = true;
+                                            break;
+                                        }
+                                    }
+                                    if (clash) continue;
+                                    ttOccupied.push(bRect);
                                     valsData.push({ text: String(Math.round(val)), val: Math.round(val), tx: tx, ty: ty });
                                 }
                             } else {
@@ -2517,11 +2582,20 @@
                                         var rect = { x1: nx - bWidth/2, y1: ny - bHeight/2, x2: nx + bWidth/2, y2: ny + bHeight/2 };
                                         
                                         var collides = false;
-                                        for (var bi = 0; bi < placedBoxes.length; bi++) {
-                                            var b = placedBoxes[bi];
-                                            if (rect.x1 < b.x2 + 8 && rect.x2 > b.x1 - 8 && rect.y1 < b.y2 + 8 && rect.y2 > b.y1 - 8) {
+                                        for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                            var occ = ttOccupied[oi];
+                                            if (rect.x1 < occ.right && rect.x2 > occ.left && rect.y1 < occ.bottom && rect.y2 > occ.top) {
                                                 collides = true;
                                                 break;
+                                            }
+                                        }
+                                        if (!collides) {
+                                            for (var bi = 0; bi < placedBoxes.length; bi++) {
+                                                var b = placedBoxes[bi];
+                                                if (rect.x1 < b.x2 + 8 && rect.x2 > b.x1 - 8 && rect.y1 < b.y2 + 8 && rect.y2 > b.y1 - 8) {
+                                                    collides = true;
+                                                    break;
+                                                }
                                             }
                                         }
                                         if (!collides) {
