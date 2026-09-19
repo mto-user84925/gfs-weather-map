@@ -3402,12 +3402,22 @@
             offsets.forEach(function (offset) {
                 var targetIdx = (index + offset + steps.length) % steps.length;
                 var neighbour = steps[targetIdx];
-                if (!neighbour || !neighbour.files[currentLayer]) {
-                    return;
+                if (!neighbour) return;
+                if (neighbour.files && neighbour.files[currentLayer]) {
+                    var preload = new Image();
+                    preload.crossOrigin = 'anonymous';
+                    preload.src = versioned(neighbour.files[currentLayer]);
                 }
-                var preload = new Image();
-                preload.crossOrigin = 'anonymous';
-                preload.src = versioned(neighbour.files[currentLayer]);
+                if (neighbour.files && neighbour.files['pression']) {
+                    var pSrc = versioned(neighbour.files['pression']);
+                    if (!synopticPressionImages[pSrc]) {
+                        var pPreload = new Image();
+                        pPreload.crossOrigin = 'anonymous';
+                        pPreload.onload = function () { synopticPressionImages[pSrc] = pPreload; };
+                        pPreload.src = pSrc;
+                        synopticPressionImages[pSrc] = pPreload;
+                    }
+                }
             });
         }
 
@@ -3530,6 +3540,23 @@
                 return;
             }
             var nextSource = versioned(fileRel);
+            if (step && step.files && step.files['pression']) {
+                var pSrc = versioned(step.files['pression']);
+                if (!synopticPressionImages[pSrc]) {
+                    var pImg = new Image();
+                    pImg.crossOrigin = 'anonymous';
+                    pImg.onload = function () {
+                        synopticPressionImages[pSrc] = pImg;
+                        if (frontsVisible && (currentLayer.indexOf('geopotentiel') !== -1 || currentLayer.indexOf('pression') !== -1)) {
+                            cachedFrontsKey = null;
+                            cachedFrontsData = null;
+                            scheduleRender();
+                        }
+                    };
+                    pImg.src = pSrc;
+                    synopticPressionImages[pSrc] = pImg;
+                }
+            }
             loadProbe(step);
             var loader = new Image();
             loader.crossOrigin = 'anonymous';
@@ -4610,6 +4637,7 @@
 
         var cachedFrontsData = null;
         var cachedFrontsKey = null;
+        var synopticPressionImages = {};
 
         function chainFrontSegments(segments) {
             function ptKey(p) {
@@ -4709,7 +4737,41 @@
 
         function computeTvFrontsData(img, layerKey, maskImg) {
             if (!img || !img.width || !img.height) return null;
-            var key = (img.src || '') + '_' + layerKey + (maskImg ? '_m' : '');
+
+            var isEuOrWorld = (typeof isEuropeDomain === 'function' && isEuropeDomain()) || (typeof isWorldDomain === 'function' && isWorldDomain()) || (currentModel.indexOf('_france') === -1);
+            var isSynoptic = isEuOrWorld && (layerKey.indexOf('geopotentiel') !== -1 || layerKey.indexOf('pression') !== -1);
+
+            var sampleImg = img;
+            var sampleLayerKey = layerKey;
+            var isPress = (layerKey.indexOf('pression') !== -1);
+
+            if (isSynoptic && !isPress && layerKey.indexOf('geopotentiel') !== -1 && img && img.src) {
+                var pUrl = img.src.replace(/geopotentiel_500(_meteociel)?/, 'pression');
+                if (synopticPressionImages[pUrl] && synopticPressionImages[pUrl].complete && synopticPressionImages[pUrl].naturalWidth) {
+                    sampleImg = synopticPressionImages[pUrl];
+                    sampleLayerKey = 'pression';
+                    isPress = true;
+                } else {
+                    if (!synopticPressionImages[pUrl]) {
+                        var pImg = new Image();
+                        pImg.crossOrigin = 'anonymous';
+                        pImg.onload = function () {
+                            synopticPressionImages[pUrl] = pImg;
+                            cachedFrontsKey = null;
+                            cachedFrontsData = null;
+                            if (frontsVisible) {
+                                scheduleRender();
+                            }
+                        };
+                        pImg.src = pUrl;
+                        synopticPressionImages[pUrl] = pImg;
+                    }
+                    // Tant que la pression réelle au sol n'est pas chargée, différer pour éviter les faux cartouches Z500
+                    return { lines: [], badges: [] };
+                }
+            }
+
+            var key = (sampleImg.src || '') + '_' + sampleLayerKey + (maskImg ? '_m' : '');
             if (cachedFrontsKey === key && cachedFrontsData) {
                 return cachedFrontsData;
             }
@@ -4719,7 +4781,7 @@
             off.width = gw;
             off.height = gh;
             var octx = off.getContext('2d', { willReadFrequently: true });
-            octx.drawImage(img, 0, 0, gw, gh);
+            octx.drawImage(sampleImg, 0, 0, gw, gh);
             var idata = octx.getImageData(0, 0, gw, gh).data;
 
             // Masque métropole optionnel pour borner strictement le calcul au territoire français
@@ -4739,10 +4801,10 @@
             var valid = new Uint8Array(gw * gh);
             var minVal = Infinity, maxVal = -Infinity;
 
-            var isTemp = layerKey.indexOf('temperature') !== -1;
-            var isRain = layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precipitations') !== -1;
-            var isWind = layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafales') !== -1;
-            var layerPal = window.getLayerPalette ? window.getLayerPalette(layerKey) : null;
+            var isTemp = sampleLayerKey.indexOf('temperature') !== -1;
+            var isRain = sampleLayerKey.indexOf('pluie') !== -1 || sampleLayerKey.indexOf('precipitations') !== -1;
+            var isWind = sampleLayerKey.indexOf('vent') !== -1 || sampleLayerKey.indexOf('rafales') !== -1;
+            var layerPal = window.getLayerPalette ? window.getLayerPalette(sampleLayerKey) : null;
 
             for (var y = 0; y < gh; y++) {
                 for (var x = 0; x < gw; x++) {
@@ -4838,12 +4900,11 @@
             if (pMax <= pMin) pMax = pMin + 1;
 
             var isEuOrWorld = (typeof isEuropeDomain === 'function' && isEuropeDomain()) || (typeof isWorldDomain === 'function' && isWorldDomain()) || (currentModel.indexOf('_france') === -1);
-            var isSynoptic = isEuOrWorld && (layerKey.indexOf('geopotentiel') !== -1 || layerKey.indexOf('pression') !== -1);
+            var isSynoptic = isEuOrWorld && (sampleLayerKey.indexOf('geopotentiel') !== -1 || sampleLayerKey.indexOf('pression') !== -1);
             if (isSynoptic) {
-                // Détection des centres d'action synoptiques Europe & Monde :
-                // D (Dépression en bleu) et A (Anticyclone en rouge) avec pression en hPa.
+                // Détection des centres d'action synoptiques Europe & Monde sur la pression réelle au sol (MSLP en hPa) :
+                // D (Dépression en bleu) et A (Anticyclone en rouge) avec pression réelle en hPa.
                 // 0 ligne blanche épaisse superflue, 0 cartouche en dam.
-                var isPress = (layerKey.indexOf('pression') !== -1);
                 var synopticBadges = [];
                 var minCand = [];
                 var maxCand = [];
@@ -4878,23 +4939,32 @@
                 minCand.sort(function (a, b) { return a.val - b.val; });
                 maxCand.sort(function (a, b) { return b.val - a.val; });
 
-                var placedCenters = [];
+                var placedMinCenters = [];
+                var placedMaxCenters = [];
                 // ponytail: espacement calibré pour accueillir les pastilles géantes triplées sans risque de contact
-                var minSep = 12.0;
+                var minSepSame = 11.0;
+                var minSepOpposite = 9.0;
 
                 for (var mi = 0; mi < minCand.length; mi++) {
                     var c = minCand[mi];
-                    if (isPress ? (c.val > 1013) : (c.val > 556)) continue;
+                    if (c.val > 1013) continue;
                     var clash = false;
-                    for (var pi = 0; pi < placedCenters.length; pi++) {
-                        var pc = placedCenters[pi];
+                    for (var pi = 0; pi < placedMinCenters.length; pi++) {
+                        var pc = placedMinCenters[pi];
                         var edx = c.x - pc.x, edy = c.y - pc.y;
-                        if (edx * edx + edy * edy < minSep * minSep) { clash = true; break; }
+                        if (edx * edx + edy * edy < minSepSame * minSepSame) { clash = true; break; }
+                    }
+                    if (!clash) {
+                        for (var pi = 0; pi < placedMaxCenters.length; pi++) {
+                            var pc = placedMaxCenters[pi];
+                            var edx = c.x - pc.x, edy = c.y - pc.y;
+                            if (edx * edx + edy * edy < minSepOpposite * minSepOpposite) { clash = true; break; }
+                        }
                     }
                     if (clash) continue;
-                    placedCenters.push(c);
+                    placedMinCenters.push(c);
 
-                    var hPa = isPress ? Math.round(c.val) : Math.round(1013.25 + (c.val - 552.0) * 1.25);
+                    var hPa = Math.min(1055, Math.max(920, Math.round(c.val)));
                     synopticBadges.push({
                         u: c.x / (gw - 1),
                         v: c.y / (gh - 1),
@@ -4905,22 +4975,29 @@
                         color: '#0284c7',
                         clearance: 99
                     });
-                    if (synopticBadges.filter(function(b) { return b.actionType === 'D'; }).length >= 5) break;
+                    if (synopticBadges.filter(function(b) { return b.actionType === 'D'; }).length >= 6) break;
                 }
 
                 for (var ma = 0; ma < maxCand.length; ma++) {
                     var c = maxCand[ma];
-                    if (isPress ? (c.val < 1015) : (c.val < 556)) continue;
+                    if (c.val < 1015) continue;
                     var clash = false;
-                    for (var pi = 0; pi < placedCenters.length; pi++) {
-                        var pc = placedCenters[pi];
+                    for (var pi = 0; pi < placedMaxCenters.length; pi++) {
+                        var pc = placedMaxCenters[pi];
                         var edx = c.x - pc.x, edy = c.y - pc.y;
-                        if (edx * edx + edy * edy < minSep * minSep) { clash = true; break; }
+                        if (edx * edx + edy * edy < minSepSame * minSepSame) { clash = true; break; }
+                    }
+                    if (!clash) {
+                        for (var pi = 0; pi < placedMinCenters.length; pi++) {
+                            var pc = placedMinCenters[pi];
+                            var edx = c.x - pc.x, edy = c.y - pc.y;
+                            if (edx * edx + edy * edy < minSepOpposite * minSepOpposite) { clash = true; break; }
+                        }
                     }
                     if (clash) continue;
-                    placedCenters.push(c);
+                    placedMaxCenters.push(c);
 
-                    var hPa = isPress ? Math.round(c.val) : Math.round(1013.25 + (c.val - 552.0) * 1.25);
+                    var hPa = Math.min(1055, Math.max(920, Math.round(c.val)));
                     synopticBadges.push({
                         u: c.x / (gw - 1),
                         v: c.y / (gh - 1),
@@ -4931,7 +5008,7 @@
                         color: '#dc2626',
                         clearance: 99
                     });
-                    if (synopticBadges.filter(function(b) { return b.actionType === 'A'; }).length >= 5) break;
+                    if (synopticBadges.filter(function(b) { return b.actionType === 'A'; }).length >= 6) break;
                 }
 
                 cachedFrontsKey = key;
