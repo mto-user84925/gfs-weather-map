@@ -1512,44 +1512,115 @@
                             var b = allExportBadges[bi];
                             var bx = b.u * 2200.0 * hScale + offX;
                             var by = b.v * natH * vScale + offY;
-                            var text = b.label;
-                            var curFontSize = bFontSize; // Même taille pour tous les cartouches
-                            context.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                            var tw = context.measureText(text).width;
-                            var padX = 20;
-                            var padY = 12;
-                            var bw = Math.max(180, tw + padX * 2);
-                            var bh = curFontSize + padY * 2;
-                            var rad = 14;
 
-                            // Protection anti-collision avec le titre, le logo ou la légende
-                            var bRect = { left: bx - bw / 2 - 6, right: bx + bw / 2 + 6, top: by - bh / 2 - 6, bottom: by + bh / 2 + 6 };
-                            var clash = false;
-                            for (var oi = 0; oi < occupied.length; oi++) {
-                                var occ = occupied[oi];
-                                if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
-                                    clash = true;
-                                    break;
+                            if (b.isSynoptic) {
+                                var radius = 32;
+                                var discColor = (b.actionType === 'D') ? '#0284c7' : '#dc2626';
+
+                                var bRect = { left: bx - radius - 10, right: bx + radius + 10, top: by - radius - 8, bottom: by + radius + 38 };
+                                var clash = false;
+                                for (var oi = 0; oi < occupied.length; oi++) {
+                                    var occ = occupied[oi];
+                                    if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                        clash = true;
+                                        break;
+                                    }
                                 }
-                            }
-                            if (clash) continue;
-                            occupied.push(bRect);
+                                if (clash) continue;
+                                occupied.push(bRect);
 
-                            context.fillStyle = 'rgba(18, 22, 32, 0.95)';
-                            context.strokeStyle = '#ffffff';
-                            context.lineWidth = 2.5;
+                                context.save();
+                                context.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                context.shadowBlur = 12;
+                                context.shadowOffsetX = 3.5;
+                                context.shadowOffsetY = 3.5;
 
-                            context.beginPath();
-                            if (typeof context.roundRect === 'function') {
-                                context.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                context.fillStyle = discColor;
+                                context.strokeStyle = '#ffffff';
+                                context.lineWidth = 3.5;
+                                context.beginPath();
+                                context.arc(bx, by, radius, 0, Math.PI * 2);
+                                context.fill();
+                                context.stroke();
+
+                                context.shadowColor = 'transparent';
+                                context.shadowBlur = 0;
+                                context.shadowOffsetX = 0;
+                                context.shadowOffsetY = 0;
+                                context.fillStyle = '#ffffff';
+                                context.font = 'bold 36px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                context.textAlign = 'center';
+                                context.textBaseline = 'middle';
+                                context.fillText(b.actionType, bx, by + 1);
+
+                                if (b.pressureText) {
+                                    context.font = 'bold 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    var ptw = context.measureText(b.pressureText).width;
+                                    var pbw = ptw + 20;
+                                    var pbh = 28;
+                                    var pby = by + radius + 18;
+
+                                    context.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                                    context.shadowBlur = 8;
+                                    context.shadowOffsetX = 2.5;
+                                    context.shadowOffsetY = 2.5;
+
+                                    context.fillStyle = 'rgba(12, 16, 26, 0.95)';
+                                    context.strokeStyle = '#ffffff';
+                                    context.lineWidth = 2.0;
+
+                                    context.beginPath();
+                                    if (typeof context.roundRect === 'function') context.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 8);
+                                    else context.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
+                                    context.fill();
+                                    context.stroke();
+
+                                    context.shadowColor = 'transparent';
+                                    context.shadowBlur = 0;
+                                    context.fillStyle = '#ffffff';
+                                    context.fillText(b.pressureText, bx, pby);
+                                }
+                                context.restore();
                             } else {
-                                context.rect(bx - bw / 2, by - bh / 2, bw, bh);
-                            }
-                            context.fill();
-                            context.stroke();
+                                var text = b.label;
+                                var curFontSize = bFontSize; // Même taille pour tous les cartouches
+                                context.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                var tw = context.measureText(text).width;
+                                var padX = 20;
+                                var padY = 12;
+                                var bw = Math.max(180, tw + padX * 2);
+                                var bh = curFontSize + padY * 2;
+                                var rad = 14;
 
-                            context.fillStyle = '#ffffff';
-                            context.fillText(text, bx, by);
+                                // Protection anti-collision avec le titre, le logo ou la légende
+                                var bRect = { left: bx - bw / 2 - 6, right: bx + bw / 2 + 6, top: by - bh / 2 - 6, bottom: by + bh / 2 + 6 };
+                                var clash = false;
+                                for (var oi = 0; oi < occupied.length; oi++) {
+                                    var occ = occupied[oi];
+                                    if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                        clash = true;
+                                        break;
+                                    }
+                                }
+                                if (clash) continue;
+                                occupied.push(bRect);
+
+                                context.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                                context.strokeStyle = '#ffffff';
+                                context.lineWidth = 2.5;
+
+                                context.beginPath();
+                                if (typeof context.roundRect === 'function') {
+                                    context.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                } else {
+                                    context.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                                }
+                                context.fill();
+                                context.stroke();
+
+                                context.fillStyle = '#ffffff';
+                                context.fillText(text, bx, by);
+                            }
                         }
                         context.restore();
                     }
@@ -2353,61 +2424,131 @@
 
                                 if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
 
-                                var text = badge.label;
-                                ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                var tw = ttCtx.measureText(text).width;
-                                var padX = 20;
-                                var padY = 11;
-                                var bw = Math.max(175, tw + padX * 2);
-                                var bh = bFontSize + padY * 2;
-                                var rad = 14;
+                                if (badge.isSynoptic) {
+                                    var radius = 30;
+                                    var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                                var bRect = {
-                                    left: bx - bw / 2 - 8,
-                                    right: bx + bw / 2 + 8,
-                                    top: by - bh / 2 - 8,
-                                    bottom: by + bh / 2 + 8
-                                };
-
-                                var clash = false;
-                                for (var oi = 0; oi < ttOccupied.length; oi++) {
-                                    var occ = ttOccupied[oi];
-                                    if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
-                                        clash = true;
-                                        break;
+                                    var bRect = { left: bx - radius - 10, right: bx + radius + 10, top: by - radius - 8, bottom: by + radius + 38 };
+                                    var clash = false;
+                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                        var occ = ttOccupied[oi];
+                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                            clash = true;
+                                            break;
+                                        }
                                     }
-                                }
-                                if (clash) continue;
-                                ttOccupied.push(bRect);
+                                    if (clash) continue;
+                                    ttOccupied.push(bRect);
 
-                                ttCtx.save();
-                                ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                                ttCtx.shadowBlur = 10;
-                                ttCtx.shadowOffsetX = 3.5;
-                                ttCtx.shadowOffsetY = 3.5;
+                                    ttCtx.save();
+                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                    ttCtx.shadowBlur = 10;
+                                    ttCtx.shadowOffsetX = 3.5;
+                                    ttCtx.shadowOffsetY = 3.5;
 
-                                ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
-                                ttCtx.strokeStyle = '#ffffff';
-                                ttCtx.lineWidth = 2.5;
+                                    ttCtx.fillStyle = discColor;
+                                    ttCtx.strokeStyle = '#ffffff';
+                                    ttCtx.lineWidth = 3.5;
+                                    ttCtx.beginPath();
+                                    ttCtx.arc(bx, by, radius, 0, Math.PI * 2);
+                                    ttCtx.fill();
+                                    ttCtx.stroke();
 
-                                ttCtx.beginPath();
-                                if (typeof ttCtx.roundRect === 'function') {
-                                    ttCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                    ttCtx.shadowColor = 'transparent';
+                                    ttCtx.shadowBlur = 0;
+                                    ttCtx.shadowOffsetX = 0;
+                                    ttCtx.shadowOffsetY = 0;
+                                    ttCtx.fillStyle = '#ffffff';
+                                    ttCtx.font = 'bold 34px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    ttCtx.textAlign = 'center';
+                                    ttCtx.textBaseline = 'middle';
+                                    ttCtx.fillText(badge.actionType, bx, by + 1);
+
+                                    if (badge.pressureText) {
+                                        ttCtx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                        var ptw = ttCtx.measureText(badge.pressureText).width;
+                                        var pbw = ptw + 18;
+                                        var pbh = 26;
+                                        var pby = by + radius + 16;
+
+                                        ttCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                                        ttCtx.shadowBlur = 8;
+                                        ttCtx.shadowOffsetX = 2.5;
+                                        ttCtx.shadowOffsetY = 2.5;
+
+                                        ttCtx.fillStyle = 'rgba(12, 16, 26, 0.95)';
+                                        ttCtx.strokeStyle = '#ffffff';
+                                        ttCtx.lineWidth = 2.0;
+
+                                        ttCtx.beginPath();
+                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 8);
+                                        else ttCtx.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
+                                        ttCtx.fill();
+                                        ttCtx.stroke();
+
+                                        ttCtx.shadowColor = 'transparent';
+                                        ttCtx.shadowBlur = 0;
+                                        ttCtx.fillStyle = '#ffffff';
+                                        ttCtx.fillText(badge.pressureText, bx, pby);
+                                    }
+                                    ttCtx.restore();
                                 } else {
-                                    ttCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
-                                }
-                                ttCtx.fill();
-                                ttCtx.stroke();
+                                    var text = badge.label;
+                                    ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    var tw = ttCtx.measureText(text).width;
+                                    var padX = 20;
+                                    var padY = 11;
+                                    var bw = Math.max(175, tw + padX * 2);
+                                    var bh = bFontSize + padY * 2;
+                                    var rad = 14;
 
-                                ttCtx.shadowColor = 'transparent';
-                                ttCtx.shadowBlur = 0;
-                                ttCtx.shadowOffsetX = 0;
-                                ttCtx.shadowOffsetY = 0;
-                                ttCtx.fillStyle = '#ffffff';
-                                ttCtx.textAlign = 'center';
-                                ttCtx.textBaseline = 'middle';
-                                ttCtx.fillText(text, bx, by);
-                                ttCtx.restore();
+                                    var bRect = {
+                                        left: bx - bw / 2 - 8,
+                                        right: bx + bw / 2 + 8,
+                                        top: by - bh / 2 - 8,
+                                        bottom: by + bh / 2 + 8
+                                    };
+
+                                    var clash = false;
+                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                        var occ = ttOccupied[oi];
+                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                            clash = true;
+                                            break;
+                                        }
+                                    }
+                                    if (clash) continue;
+                                    ttOccupied.push(bRect);
+
+                                    ttCtx.save();
+                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                                    ttCtx.shadowBlur = 10;
+                                    ttCtx.shadowOffsetX = 3.5;
+                                    ttCtx.shadowOffsetY = 3.5;
+
+                                    ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                                    ttCtx.strokeStyle = '#ffffff';
+                                    ttCtx.lineWidth = 2.5;
+
+                                    ttCtx.beginPath();
+                                    if (typeof ttCtx.roundRect === 'function') {
+                                        ttCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                                    } else {
+                                        ttCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                                    }
+                                    ttCtx.fill();
+                                    ttCtx.stroke();
+
+                                    ttCtx.shadowColor = 'transparent';
+                                    ttCtx.shadowBlur = 0;
+                                    ttCtx.shadowOffsetX = 0;
+                                    ttCtx.shadowOffsetY = 0;
+                                    ttCtx.fillStyle = '#ffffff';
+                                    ttCtx.textAlign = 'center';
+                                    ttCtx.textBaseline = 'middle';
+                                    ttCtx.fillText(text, bx, by);
+                                    ttCtx.restore();
+                                }
                             }
                         }
 
@@ -4672,6 +4813,107 @@
             }
             if (pMax <= pMin) pMax = pMin + 1;
 
+            var isEuOrWorld = (typeof isEuropeDomain === 'function' && isEuropeDomain()) || (typeof isWorldDomain === 'function' && isWorldDomain()) || (currentModel.indexOf('_france') === -1);
+            var isSynoptic = isEuOrWorld && (layerKey.indexOf('geopotentiel') !== -1 || layerKey.indexOf('pression') !== -1);
+            if (isSynoptic) {
+                // Détection des centres d'action synoptiques Europe & Monde :
+                // D (Dépression en bleu) et A (Anticyclone en rouge) avec pression en hPa.
+                // 0 ligne blanche épaisse superflue, 0 cartouche en dam.
+                var isPress = (layerKey.indexOf('pression') !== -1);
+                var synopticBadges = [];
+                var minCand = [];
+                var maxCand = [];
+                var sRad = 5;
+
+                for (var sy = sRad; sy < gh - sRad; sy++) {
+                    for (var sx = sRad; sx < gw - sRad; sx++) {
+                        var cidx = sy * gw + sx;
+                        if (!valid[cidx]) continue;
+                        var cv = smoothed[cidx];
+                        var isMin = true;
+                        var isMax = true;
+                        for (var dy = -sRad; dy <= sRad; dy++) {
+                            for (var dx = -sRad; dx <= sRad; dx++) {
+                                if (dx === 0 && dy === 0) continue;
+                                if (dx * dx + dy * dy > sRad * sRad) continue;
+                                var nidx = (sy + dy) * gw + (sx + dx);
+                                if (valid[nidx]) {
+                                    var nv = smoothed[nidx];
+                                    if (nv < cv || (nv === cv && (dy < 0 || (dy === 0 && dx < 0)))) isMin = false;
+                                    if (nv > cv || (nv === cv && (dy < 0 || (dy === 0 && dx < 0)))) isMax = false;
+                                }
+                                if (!isMin && !isMax) break;
+                            }
+                            if (!isMin && !isMax) break;
+                        }
+                        if (isMin) minCand.push({ x: sx, y: sy, val: cv });
+                        if (isMax) maxCand.push({ x: sx, y: sy, val: cv });
+                    }
+                }
+
+                minCand.sort(function (a, b) { return a.val - b.val; });
+                maxCand.sort(function (a, b) { return b.val - a.val; });
+
+                var placedCenters = [];
+                var minSep = 9.0;
+
+                for (var mi = 0; mi < minCand.length; mi++) {
+                    var c = minCand[mi];
+                    if (isPress ? (c.val > 1013) : (c.val > 556)) continue;
+                    var clash = false;
+                    for (var pi = 0; pi < placedCenters.length; pi++) {
+                        var pc = placedCenters[pi];
+                        var edx = c.x - pc.x, edy = c.y - pc.y;
+                        if (edx * edx + edy * edy < minSep * minSep) { clash = true; break; }
+                    }
+                    if (clash) continue;
+                    placedCenters.push(c);
+
+                    var hPa = isPress ? Math.round(c.val) : Math.round(1013.25 + (c.val - 552.0) * 1.25);
+                    synopticBadges.push({
+                        u: c.x / (gw - 1),
+                        v: c.y / (gh - 1),
+                        isSynoptic: true,
+                        actionType: 'D',
+                        label: 'D',
+                        pressureText: hPa + ' hPa',
+                        color: '#0284c7',
+                        clearance: 99
+                    });
+                    if (synopticBadges.filter(function(b) { return b.actionType === 'D'; }).length >= 5) break;
+                }
+
+                for (var ma = 0; ma < maxCand.length; ma++) {
+                    var c = maxCand[ma];
+                    if (isPress ? (c.val < 1015) : (c.val < 556)) continue;
+                    var clash = false;
+                    for (var pi = 0; pi < placedCenters.length; pi++) {
+                        var pc = placedCenters[pi];
+                        var edx = c.x - pc.x, edy = c.y - pc.y;
+                        if (edx * edx + edy * edy < minSep * minSep) { clash = true; break; }
+                    }
+                    if (clash) continue;
+                    placedCenters.push(c);
+
+                    var hPa = isPress ? Math.round(c.val) : Math.round(1013.25 + (c.val - 552.0) * 1.25);
+                    synopticBadges.push({
+                        u: c.x / (gw - 1),
+                        v: c.y / (gh - 1),
+                        isSynoptic: true,
+                        actionType: 'A',
+                        label: 'A',
+                        pressureText: hPa + ' hPa',
+                        color: '#dc2626',
+                        clearance: 99
+                    });
+                    if (synopticBadges.filter(function(b) { return b.actionType === 'A'; }).length >= 5) break;
+                }
+
+                cachedFrontsKey = key;
+                cachedFrontsData = { lines: [], badges: synopticBadges };
+                return cachedFrontsData;
+            }
+
             // ponytail: alignement strict des lignes de front sur les vrais paliers des cartouches TV
             // pour qu'aucune ligne ne sépare deux cartouches identiques
             var range = pMax - pMin;
@@ -5208,26 +5450,93 @@
                     var badge = allBadges[bi];
                     var bx = badge.u * 2200.0;
                     var by = badge.v * natH;
-                    var text = badge.label;
-                    var tw = frontsContext.measureText(text).width;
-                    var padX = 18 / zoomFactor;
-                    var padY = 11 / zoomFactor;
-                    var bw = Math.max(160 / zoomFactor, tw + padX * 2);
-                    var bh = fontSize + padY * 2;
-                    var rad = 12 / zoomFactor;
 
-                    frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
-                    frontsContext.strokeStyle = '#ffffff';
-                    frontsContext.lineWidth = 2.5 / zoomFactor;
+                    if (badge.isSynoptic) {
+                        var radius = Math.round(30 / zoomFactor);
+                        var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                    frontsContext.beginPath();
-                    if (frontsContext.roundRect) frontsContext.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
-                    else frontsContext.rect(bx - bw / 2, by - bh / 2, bw, bh);
-                    frontsContext.fill();
-                    frontsContext.stroke();
+                        // 1. Disque circulaire coloré (ombre portée + bord blanc épais)
+                        frontsContext.save();
+                        frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                        frontsContext.shadowBlur = 10 / zoomFactor;
+                        frontsContext.shadowOffsetX = 3.5 / zoomFactor;
+                        frontsContext.shadowOffsetY = 3.5 / zoomFactor;
 
-                    frontsContext.fillStyle = '#ffffff';
-                    frontsContext.fillText(text, bx, by);
+                        frontsContext.fillStyle = discColor;
+                        frontsContext.strokeStyle = '#ffffff';
+                        frontsContext.lineWidth = 3.5 / zoomFactor;
+
+                        frontsContext.beginPath();
+                        frontsContext.arc(bx, by, radius, 0, Math.PI * 2);
+                        frontsContext.fill();
+                        frontsContext.stroke();
+
+                        // 2. Lettre D ou A majuscule blanche centrée
+                        frontsContext.shadowColor = 'transparent';
+                        frontsContext.shadowBlur = 0;
+                        frontsContext.shadowOffsetX = 0;
+                        frontsContext.shadowOffsetY = 0;
+                        frontsContext.fillStyle = '#ffffff';
+                        frontsContext.font = 'bold ' + Math.round(34 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        frontsContext.textAlign = 'center';
+                        frontsContext.textBaseline = 'middle';
+                        frontsContext.fillText(badge.actionType, bx, by + 1 / zoomFactor);
+
+                        // 3. Cartouche pression en hPa sous la pastille
+                        if (badge.pressureText) {
+                            var pillFont = 'bold ' + Math.round(21 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            frontsContext.font = pillFont;
+                            var ptw = frontsContext.measureText(badge.pressureText).width;
+                            var pbw = ptw + 18 / zoomFactor;
+                            var pbh = Math.round(26 / zoomFactor);
+                            var pby = by + radius + 16 / zoomFactor;
+
+                            frontsContext.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                            frontsContext.shadowBlur = 8 / zoomFactor;
+                            frontsContext.shadowOffsetX = 2.5 / zoomFactor;
+                            frontsContext.shadowOffsetY = 2.5 / zoomFactor;
+
+                            frontsContext.fillStyle = 'rgba(12, 16, 26, 0.95)';
+                            frontsContext.strokeStyle = '#ffffff';
+                            frontsContext.lineWidth = 2 / zoomFactor;
+
+                            frontsContext.beginPath();
+                            if (typeof frontsContext.roundRect === 'function') {
+                                frontsContext.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 8 / zoomFactor);
+                            } else {
+                                frontsContext.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
+                            }
+                            frontsContext.fill();
+                            frontsContext.stroke();
+
+                            frontsContext.shadowColor = 'transparent';
+                            frontsContext.shadowBlur = 0;
+                            frontsContext.fillStyle = '#ffffff';
+                            frontsContext.fillText(badge.pressureText, bx, pby);
+                        }
+                        frontsContext.restore();
+                    } else {
+                        var text = badge.label;
+                        var tw = frontsContext.measureText(text).width;
+                        var padX = 18 / zoomFactor;
+                        var padY = 11 / zoomFactor;
+                        var bw = Math.max(160 / zoomFactor, tw + padX * 2);
+                        var bh = fontSize + padY * 2;
+                        var rad = 12 / zoomFactor;
+
+                        frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
+                        frontsContext.strokeStyle = '#ffffff';
+                        frontsContext.lineWidth = 2.5 / zoomFactor;
+
+                        frontsContext.beginPath();
+                        if (frontsContext.roundRect) frontsContext.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                        else frontsContext.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                        frontsContext.fill();
+                        frontsContext.stroke();
+
+                        frontsContext.fillStyle = '#ffffff';
+                        frontsContext.fillText(text, bx, by);
+                    }
                 }
             }
 
