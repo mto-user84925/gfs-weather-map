@@ -1514,21 +1514,21 @@
                             var by = b.v * natH * vScale + offY;
 
                             if (b.isSynoptic) {
-                                // ponytail: dimensions triplées conformément au standard broadcast TV pour une lisibilité maximale
+                                // ponytail: dimensions ajustées équilibrées (~28% plus compactes que géantes, nettes et lisibles)
                                 var scaleFactor = Math.min(hScale, 1.25);
-                                var radius = Math.round(82 * scaleFactor);
+                                var radius = Math.round(58 * scaleFactor);
                                 var discColor = (b.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                                var ptwEst = 170;
-                                var estPbw = ptwEst + 50;
-                                var estPbh = Math.round(72 * scaleFactor);
-                                var estPby = by + radius + 46;
+                                var ptwEst = 120;
+                                var estPbw = ptwEst + 36;
+                                var estPbh = Math.round(52 * scaleFactor);
+                                var estPby = by + radius + Math.round(32 * scaleFactor);
 
                                 var bRect = {
-                                    left: bx - Math.max(radius, estPbw / 2) - 15,
-                                    right: bx + Math.max(radius, estPbw / 2) + 15,
-                                    top: by - radius - 15,
-                                    bottom: estPby + estPbh / 2 + 15
+                                    left: bx - Math.max(radius, estPbw / 2) - 12,
+                                    right: bx + Math.max(radius, estPbw / 2) + 12,
+                                    top: by - radius - 12,
+                                    bottom: estPby + estPbh / 2 + 12
                                 };
                                 var clash = false;
                                 for (var oi = 0; oi < occupied.length; oi++) {
@@ -1543,13 +1543,13 @@
 
                                 context.save();
                                 context.shadowColor = 'rgba(0, 0, 0, 0.88)';
-                                context.shadowBlur = 22;
-                                context.shadowOffsetX = 6;
-                                context.shadowOffsetY = 6;
+                                context.shadowBlur = 16;
+                                context.shadowOffsetX = 4;
+                                context.shadowOffsetY = 4;
 
                                 context.fillStyle = discColor;
                                 context.strokeStyle = '#ffffff';
-                                context.lineWidth = 8.5;
+                                context.lineWidth = 6.0;
                                 context.beginPath();
                                 context.arc(bx, by, radius, 0, Math.PI * 2);
                                 context.fill();
@@ -1560,29 +1560,29 @@
                                 context.shadowOffsetX = 0;
                                 context.shadowOffsetY = 0;
                                 context.fillStyle = '#ffffff';
-                                context.font = '900 ' + Math.round(96 * scaleFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                context.font = '900 ' + Math.round(68 * scaleFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                 context.textAlign = 'center';
                                 context.textBaseline = 'middle';
-                                context.fillText(b.actionType, bx, by + 2);
+                                context.fillText(b.actionType, bx, by + 1.5);
 
                                 if (b.pressureText) {
-                                    context.font = '900 ' + Math.round(56 * scaleFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    context.font = '900 ' + Math.round(40 * scaleFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     var ptw = context.measureText(b.pressureText).width;
-                                    var pbw = ptw + 50;
-                                    var pbh = Math.round(72 * scaleFactor);
-                                    var pby = by + radius + 46;
+                                    var pbw = ptw + 34;
+                                    var pbh = Math.round(52 * scaleFactor);
+                                    var pby = by + radius + Math.round(32 * scaleFactor);
 
                                     context.shadowColor = 'rgba(0, 0, 0, 0.82)';
-                                    context.shadowBlur = 16;
-                                    context.shadowOffsetX = 5;
-                                    context.shadowOffsetY = 5;
+                                    context.shadowBlur = 12;
+                                    context.shadowOffsetX = 3.5;
+                                    context.shadowOffsetY = 3.5;
 
                                     context.fillStyle = 'rgba(10, 14, 24, 0.96)';
                                     context.strokeStyle = '#ffffff';
-                                    context.lineWidth = 4.5;
+                                    context.lineWidth = 3.5;
 
                                     context.beginPath();
-                                    if (typeof context.roundRect === 'function') context.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 18);
+                                    if (typeof context.roundRect === 'function') context.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 14);
                                     else context.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
                                     context.fill();
                                     context.stroke();
@@ -2438,20 +2438,20 @@
                                 if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
 
                                 if (badge.isSynoptic) {
-                                    // ponytail: dimensions triplées pour lisibilité broadcast smartphone percutante
-                                    var radius = 80;
+                                    // ponytail: dimensions ajustées équilibrées (~28% plus compactes que géantes, nettes et lisibles)
+                                    var radius = 58;
                                     var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                                    var ptwEst = 160;
-                                    var estPbw = ptwEst + 48;
-                                    var estPbh = 68;
-                                    var estPby = by + radius + 44;
+                                    var ptwEst = 120;
+                                    var estPbw = ptwEst + 34;
+                                    var estPbh = 52;
+                                    var estPby = by + radius + 30;
 
                                     var bRect = {
-                                        left: bx - Math.max(radius, estPbw / 2) - 15,
-                                        right: bx + Math.max(radius, estPbw / 2) + 15,
-                                        top: by - radius - 15,
-                                        bottom: estPby + estPbh / 2 + 15
+                                        left: bx - Math.max(radius, estPbw / 2) - 12,
+                                        right: bx + Math.max(radius, estPbw / 2) + 12,
+                                        top: by - radius - 12,
+                                        bottom: estPby + estPbh / 2 + 12
                                     };
                                     var clash = false;
                                     for (var oi = 0; oi < ttOccupied.length; oi++) {
@@ -2466,13 +2466,13 @@
 
                                     ttCtx.save();
                                     ttCtx.shadowColor = 'rgba(0, 0, 0, 0.88)';
-                                    ttCtx.shadowBlur = 22;
-                                    ttCtx.shadowOffsetX = 6;
-                                    ttCtx.shadowOffsetY = 6;
+                                    ttCtx.shadowBlur = 16;
+                                    ttCtx.shadowOffsetX = 4;
+                                    ttCtx.shadowOffsetY = 4;
 
                                     ttCtx.fillStyle = discColor;
                                     ttCtx.strokeStyle = '#ffffff';
-                                    ttCtx.lineWidth = 8.0;
+                                    ttCtx.lineWidth = 6.0;
                                     ttCtx.beginPath();
                                     ttCtx.arc(bx, by, radius, 0, Math.PI * 2);
                                     ttCtx.fill();
@@ -2483,29 +2483,29 @@
                                     ttCtx.shadowOffsetX = 0;
                                     ttCtx.shadowOffsetY = 0;
                                     ttCtx.fillStyle = '#ffffff';
-                                    ttCtx.font = '900 94px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    ttCtx.font = '900 68px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     ttCtx.textAlign = 'center';
                                     ttCtx.textBaseline = 'middle';
-                                    ttCtx.fillText(badge.actionType, bx, by + 2);
+                                    ttCtx.fillText(badge.actionType, bx, by + 1.5);
 
                                     if (badge.pressureText) {
-                                        ttCtx.font = '900 54px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                        ttCtx.font = '900 40px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                         var ptw = ttCtx.measureText(badge.pressureText).width;
-                                        var pbw = ptw + 48;
-                                        var pbh = 68;
-                                        var pby = by + radius + 44;
+                                        var pbw = ptw + 34;
+                                        var pbh = 52;
+                                        var pby = by + radius + 30;
 
                                         ttCtx.shadowColor = 'rgba(0, 0, 0, 0.82)';
-                                        ttCtx.shadowBlur = 16;
-                                        ttCtx.shadowOffsetX = 5;
-                                        ttCtx.shadowOffsetY = 5;
+                                        ttCtx.shadowBlur = 12;
+                                        ttCtx.shadowOffsetX = 3.5;
+                                        ttCtx.shadowOffsetY = 3.5;
 
                                         ttCtx.fillStyle = 'rgba(10, 14, 24, 0.96)';
                                         ttCtx.strokeStyle = '#ffffff';
-                                        ttCtx.lineWidth = 4.5;
+                                        ttCtx.lineWidth = 3.5;
 
                                         ttCtx.beginPath();
-                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 18);
+                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 14);
                                         else ttCtx.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
                                         ttCtx.fill();
                                         ttCtx.stroke();
@@ -4941,9 +4941,9 @@
 
                 var placedMinCenters = [];
                 var placedMaxCenters = [];
-                // ponytail: espacement calibré pour accueillir les pastilles géantes triplées sans risque de contact
-                var minSepSame = 11.0;
-                var minSepOpposite = 9.0;
+                // ponytail: espacement calibré pour accueillir les pastilles TV réajustées sans risque de contact
+                var minSepSame = 9.0;
+                var minSepOpposite = 7.5;
 
                 for (var mi = 0; mi < minCand.length; mi++) {
                     var c = minCand[mi];
@@ -5554,58 +5554,58 @@
                     var by = badge.v * natH;
 
                     if (badge.isSynoptic) {
-                        // ponytail: dimensions triplées conformément au standard broadcast TV pour une lisibilité maximale
-                        var radius = Math.round(82 / zoomFactor);
+                        // ponytail: dimensions ajustées équilibrées (~28% plus compactes que géantes, nettes et lisibles)
+                        var radius = Math.round(58 / zoomFactor);
                         var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                        // 1. Disque circulaire coloré géant (ombre portée + bord blanc très épais)
+                        // 1. Disque circulaire coloré (ombre portée + bord blanc épais)
                         frontsContext.save();
                         frontsContext.shadowColor = 'rgba(0, 0, 0, 0.88)';
-                        frontsContext.shadowBlur = 22 / zoomFactor;
-                        frontsContext.shadowOffsetX = 6 / zoomFactor;
-                        frontsContext.shadowOffsetY = 6 / zoomFactor;
+                        frontsContext.shadowBlur = 16 / zoomFactor;
+                        frontsContext.shadowOffsetX = 4 / zoomFactor;
+                        frontsContext.shadowOffsetY = 4 / zoomFactor;
 
                         frontsContext.fillStyle = discColor;
                         frontsContext.strokeStyle = '#ffffff';
-                        frontsContext.lineWidth = 8.5 / zoomFactor;
+                        frontsContext.lineWidth = 6.0 / zoomFactor;
 
                         frontsContext.beginPath();
                         frontsContext.arc(bx, by, radius, 0, Math.PI * 2);
                         frontsContext.fill();
                         frontsContext.stroke();
 
-                        // 2. Lettre D ou A majuscule blanche géante ultra-lisible
+                        // 2. Lettre D ou A majuscule blanche
                         frontsContext.shadowColor = 'transparent';
                         frontsContext.shadowBlur = 0;
                         frontsContext.shadowOffsetX = 0;
                         frontsContext.shadowOffsetY = 0;
                         frontsContext.fillStyle = '#ffffff';
-                        frontsContext.font = '900 ' + Math.round(96 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        frontsContext.font = '900 ' + Math.round(68 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                         frontsContext.textAlign = 'center';
                         frontsContext.textBaseline = 'middle';
-                        frontsContext.fillText(badge.actionType, bx, by + 2 / zoomFactor);
+                        frontsContext.fillText(badge.actionType, bx, by + 1.5 / zoomFactor);
 
-                        // 3. Cartouche pression atmosphérique en hPa géant sous la pastille
+                        // 3. Cartouche pression atmosphérique en hPa sous la pastille
                         if (badge.pressureText) {
-                            var pillFont = '900 ' + Math.round(56 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            var pillFont = '900 ' + Math.round(40 / zoomFactor) + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                             frontsContext.font = pillFont;
                             var ptw = frontsContext.measureText(badge.pressureText).width;
-                            var pbw = ptw + 48 / zoomFactor;
-                            var pbh = Math.round(72 / zoomFactor);
-                            var pby = by + radius + 46 / zoomFactor;
+                            var pbw = ptw + 34 / zoomFactor;
+                            var pbh = Math.round(52 / zoomFactor);
+                            var pby = by + radius + 32 / zoomFactor;
 
                             frontsContext.shadowColor = 'rgba(0, 0, 0, 0.82)';
-                            frontsContext.shadowBlur = 16 / zoomFactor;
-                            frontsContext.shadowOffsetX = 5 / zoomFactor;
-                            frontsContext.shadowOffsetY = 5 / zoomFactor;
+                            frontsContext.shadowBlur = 12 / zoomFactor;
+                            frontsContext.shadowOffsetX = 3.5 / zoomFactor;
+                            frontsContext.shadowOffsetY = 3.5 / zoomFactor;
 
                             frontsContext.fillStyle = 'rgba(10, 14, 24, 0.96)';
                             frontsContext.strokeStyle = '#ffffff';
-                            frontsContext.lineWidth = 4.5 / zoomFactor;
+                            frontsContext.lineWidth = 3.5 / zoomFactor;
 
                             frontsContext.beginPath();
                             if (typeof frontsContext.roundRect === 'function') {
-                                frontsContext.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 18 / zoomFactor);
+                                frontsContext.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 14 / zoomFactor);
                             } else {
                                 frontsContext.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
                             }
