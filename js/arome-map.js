@@ -1488,7 +1488,7 @@
                                             cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
                                         }
                                         allExportBadges.push({
-                                            u: 1760 / 2200.0,
+                                            u: 1700 / 2200.0,
                                             v: 1310 / natH,
                                             label: cLabel,
                                             isCorse: true
@@ -2389,7 +2389,7 @@
                                                 cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
                                             }
                                             allBadgesToDraw.push({
-                                                u: 1760 / 2200,
+                                                u: 1710 / 2200,
                                                 v: 1310 / 1640,
                                                 label: cLabel,
                                                 isCorse: true
@@ -2417,7 +2417,9 @@
                                 var badge = allBadgesToDraw[bi];
                                 var cx = badge.u * 2200;
                                 var cy = badge.v * 1640;
-                                if (badge.isCorse) cx -= 150;
+                                // Décalages demandés : Bretagne vers la droite et Corse vers la gauche pour ne pas mordre sur les bords
+                                if (badge.isCorse) cx -= 255;
+                                if (badge.isBretagne) cx += 60;
                                 var bx = targetX + (cx - cropX) * (targetW / cropW);
                                 var by = targetY + (cy - cropY) * (targetH / cropH);
 
@@ -5113,8 +5115,8 @@
                         }
 
                         var isBretagne = isFranceDomain && (px < 35 && py >= 18 && py <= 38);
-                        // Recentrage de la Bretagne vers l'intérieur (Loudéac/Centre-Bretagne) pour éviter la côte
-                        var finalPx = isBretagne ? Math.max(17, px) : px;
+                        // Recentrage de la Bretagne vers l'intérieur (Loudéac/Centre-Bretagne) pour éviter la côte et le bord gauche
+                        var finalPx = isBretagne ? Math.max(23.5, px) : px;
                         // Ne pas surélever vers le nord si on est sur la frange littorale sud (Nîmes / Camargue / PACA)
                         var shiftedPy = (py > 54) ? py : Math.max(2, py - 1.0);
 
@@ -5436,7 +5438,7 @@
                                     cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
                                 }
                                 allBadges.push({
-                                    u: 1760 / 2200.0,
+                                    u: 1700 / 2200.0,
                                     v: 1310 / natH,
                                     label: cLabel
                                 });
