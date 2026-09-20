@@ -2422,7 +2422,7 @@
                                 return (b.clearance || 0) - (a.clearance || 0);
                             });
 
-                            var bFontSize = 34;
+                            var bFontSize = 50;
                             ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
                             for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
@@ -2438,20 +2438,20 @@
                                 if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
 
                                 if (badge.isSynoptic) {
-                                    // ponytail: dimensions ajustées équilibrées (~28% plus compactes que géantes, nettes et lisibles)
-                                    var radius = 58;
+                                    // ponytail: dimensions ajustées équilibrées agrandies pour lisibilité optimale sur TikTok
+                                    var radius = 72;
                                     var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
 
-                                    var ptwEst = 120;
-                                    var estPbw = ptwEst + 34;
-                                    var estPbh = 52;
-                                    var estPby = by + radius + 30;
+                                    var ptwEst = 145;
+                                    var estPbw = ptwEst + 40;
+                                    var estPbh = 62;
+                                    var estPby = by + radius + 34;
 
                                     var bRect = {
-                                        left: bx - Math.max(radius, estPbw / 2) - 12,
-                                        right: bx + Math.max(radius, estPbw / 2) + 12,
-                                        top: by - radius - 12,
-                                        bottom: estPby + estPbh / 2 + 12
+                                        left: bx - Math.max(radius, estPbw / 2) - 14,
+                                        right: bx + Math.max(radius, estPbw / 2) + 14,
+                                        top: by - radius - 14,
+                                        bottom: estPby + estPbh / 2 + 14
                                     };
                                     var clash = false;
                                     for (var oi = 0; oi < ttOccupied.length; oi++) {
@@ -2466,13 +2466,13 @@
 
                                     ttCtx.save();
                                     ttCtx.shadowColor = 'rgba(0, 0, 0, 0.88)';
-                                    ttCtx.shadowBlur = 16;
-                                    ttCtx.shadowOffsetX = 4;
-                                    ttCtx.shadowOffsetY = 4;
+                                    ttCtx.shadowBlur = 18;
+                                    ttCtx.shadowOffsetX = 5;
+                                    ttCtx.shadowOffsetY = 5;
 
                                     ttCtx.fillStyle = discColor;
                                     ttCtx.strokeStyle = '#ffffff';
-                                    ttCtx.lineWidth = 6.0;
+                                    ttCtx.lineWidth = 7.0;
                                     ttCtx.beginPath();
                                     ttCtx.arc(bx, by, radius, 0, Math.PI * 2);
                                     ttCtx.fill();
@@ -2483,29 +2483,29 @@
                                     ttCtx.shadowOffsetX = 0;
                                     ttCtx.shadowOffsetY = 0;
                                     ttCtx.fillStyle = '#ffffff';
-                                    ttCtx.font = '900 68px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                    ttCtx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     ttCtx.textAlign = 'center';
                                     ttCtx.textBaseline = 'middle';
                                     ttCtx.fillText(badge.actionType, bx, by + 1.5);
 
                                     if (badge.pressureText) {
-                                        ttCtx.font = '900 40px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                                        ttCtx.font = '900 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                         var ptw = ttCtx.measureText(badge.pressureText).width;
-                                        var pbw = ptw + 34;
-                                        var pbh = 52;
-                                        var pby = by + radius + 30;
+                                        var pbw = ptw + 40;
+                                        var pbh = 62;
+                                        var pby = by + radius + 34;
 
                                         ttCtx.shadowColor = 'rgba(0, 0, 0, 0.82)';
-                                        ttCtx.shadowBlur = 12;
-                                        ttCtx.shadowOffsetX = 3.5;
-                                        ttCtx.shadowOffsetY = 3.5;
+                                        ttCtx.shadowBlur = 14;
+                                        ttCtx.shadowOffsetX = 4;
+                                        ttCtx.shadowOffsetY = 4;
 
                                         ttCtx.fillStyle = 'rgba(10, 14, 24, 0.96)';
                                         ttCtx.strokeStyle = '#ffffff';
-                                        ttCtx.lineWidth = 3.5;
+                                        ttCtx.lineWidth = 4.0;
 
                                         ttCtx.beginPath();
-                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 14);
+                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 16);
                                         else ttCtx.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
                                         ttCtx.fill();
                                         ttCtx.stroke();
@@ -2520,17 +2520,17 @@
                                     var text = badge.label;
                                     ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                                     var tw = ttCtx.measureText(text).width;
-                                    var padX = 20;
-                                    var padY = 11;
-                                    var bw = Math.max(175, tw + padX * 2);
+                                    var padX = 26;
+                                    var padY = 14;
+                                    var bw = Math.max(220, tw + padX * 2);
                                     var bh = bFontSize + padY * 2;
-                                    var rad = 14;
+                                    var rad = 18;
 
                                     var bRect = {
-                                        left: bx - bw / 2 - 8,
-                                        right: bx + bw / 2 + 8,
-                                        top: by - bh / 2 - 8,
-                                        bottom: by + bh / 2 + 8
+                                        left: bx - bw / 2 - 10,
+                                        right: bx + bw / 2 + 10,
+                                        top: by - bh / 2 - 10,
+                                        bottom: by + bh / 2 + 10
                                     };
 
                                     var clash = false;
@@ -2546,13 +2546,13 @@
 
                                     ttCtx.save();
                                     ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                                    ttCtx.shadowBlur = 10;
-                                    ttCtx.shadowOffsetX = 3.5;
-                                    ttCtx.shadowOffsetY = 3.5;
+                                    ttCtx.shadowBlur = 14;
+                                    ttCtx.shadowOffsetX = 4.5;
+                                    ttCtx.shadowOffsetY = 4.5;
 
                                     ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
                                     ttCtx.strokeStyle = '#ffffff';
-                                    ttCtx.lineWidth = 2.5;
+                                    ttCtx.lineWidth = 3.5;
 
                                     ttCtx.beginPath();
                                     if (typeof ttCtx.roundRect === 'function') {
@@ -2664,7 +2664,7 @@
                                     var ty = targetY + (cy - cropY) * (targetH / cropH);
 
                                     // Protection anti-collision avec les cartouches TV déjà placés
-                                    var bRect = { left: tx - 42, right: tx + 42, top: ty - 28, bottom: ty + 28 };
+                                    var bRect = { left: tx - 50, right: tx + 50, top: ty - 34, bottom: ty + 34 };
                                     var clash = false;
                                     for (var oi = 0; oi < ttOccupied.length; oi++) {
                                         var occ = ttOccupied[oi];
@@ -2702,8 +2702,8 @@
                                 var placedBoxes = [];
                                 var shifts = [
                                     { dx: 0, dy: 0 },
-                                    { dx: 0, dy: -20 }, { dx: 0, dy: 20 }, { dx: -22, dy: 0 }, { dx: 22, dy: 0 },
-                                    { dx: -20, dy: -20 }, { dx: 20, dy: -20 }, { dx: -20, dy: 20 }, { dx: 20, dy: 20 }
+                                    { dx: 0, dy: -22 }, { dx: 0, dy: 22 }, { dx: -24, dy: 0 }, { dx: 24, dy: 0 },
+                                    { dx: -22, dy: -22 }, { dx: 22, dy: -22 }, { dx: -22, dy: 22 }, { dx: 22, dy: 22 }
                                 ];
                                 
                                 for (var pi = 0; pi < targetPlaces.length; pi++) {
@@ -2737,8 +2737,8 @@
                                     
                                     var tx = targetX + (cx - cropX) * (targetW / cropW);
                                     var ty = targetY + (cy - cropY) * (targetH / cropH);
-                                    var bWidth = (strVal.length > 2 ? 80 : 68);
-                                    var bHeight = 60;
+                                    var bWidth = (strVal.length > 2 ? 104 : 88);
+                                    var bHeight = 74;
                                     
                                     var bestPos = null;
                                     for (var si = 0; si < shifts.length; si++) {
@@ -2786,18 +2786,18 @@
                             }
                             
                             // 🎯 Rendu direct et haute définition sur ttCanvas (1080 × 1920)
-                            // Calibré au millimètre près sur l'image du bureau
+                            // Agrandi pour une lisibilité parfaite sur TikTok / smartphone
                             ttCtx.textAlign = 'center';
                             ttCtx.textBaseline = 'middle';
-                            ttCtx.font = '900 68px "Arial Black", Arial, sans-serif';
-                            ttCtx.lineWidth = 14;
+                            ttCtx.font = '900 82px "Arial Black", Arial, sans-serif';
+                            ttCtx.lineWidth = 16;
                             ttCtx.strokeStyle = '#ffffff';
                             
                             // Passe 1 : Contours blancs + ombre portée noire
                             ttCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                            ttCtx.shadowBlur = 6;
-                            ttCtx.shadowOffsetX = 5;
-                            ttCtx.shadowOffsetY = 5;
+                            ttCtx.shadowBlur = 8;
+                            ttCtx.shadowOffsetX = 6;
+                            ttCtx.shadowOffsetY = 6;
                             
                             for (var i = 0; i < valsData.length; i++) {
                                 ttCtx.strokeText(valsData[i].text, valsData[i].tx, valsData[i].ty);
