@@ -1590,7 +1590,7 @@
                                     context.shadowColor = 'transparent';
                                     context.shadowBlur = 0;
                                     context.fillStyle = '#ffffff';
-                                    context.fillText(b.pressureText, bx, pby + 1);
+                                    context.fillText(b.pressureText, bx, pby + 2.5);
                                 }
                                 context.restore();
                             } else {
@@ -1631,7 +1631,7 @@
                                 context.stroke();
 
                                 context.fillStyle = '#ffffff';
-                                context.fillText(text, bx, by);
+                                context.fillText(text, bx, by + 3.0);
                             }
                         }
                         context.restore();
@@ -2513,7 +2513,7 @@
                                         ttCtx.shadowColor = 'transparent';
                                         ttCtx.shadowBlur = 0;
                                         ttCtx.fillStyle = '#ffffff';
-                                        ttCtx.fillText(badge.pressureText, bx, pby + 1);
+                                        ttCtx.fillText(badge.pressureText, bx, pby + 3.5);
                                     }
                                     ttCtx.restore();
                                 } else {
@@ -2570,7 +2570,8 @@
                                     ttCtx.fillStyle = '#ffffff';
                                     ttCtx.textAlign = 'center';
                                     ttCtx.textBaseline = 'middle';
-                                    ttCtx.fillText(text, bx, by);
+                                    // Centrage optique parfait (+4px pour compenser la hauteur de cap des chiffres sans jambages descendants)
+                                    ttCtx.fillText(text, bx, by + 4);
                                     ttCtx.restore();
                                 }
                             }
@@ -5615,7 +5616,7 @@
                             frontsContext.shadowColor = 'transparent';
                             frontsContext.shadowBlur = 0;
                             frontsContext.fillStyle = '#ffffff';
-                            frontsContext.fillText(badge.pressureText, bx, pby + 1 / zoomFactor);
+                            frontsContext.fillText(badge.pressureText, bx, pby + 2.5 / zoomFactor);
                         }
                         frontsContext.restore();
                     } else {
@@ -5638,7 +5639,7 @@
                         frontsContext.stroke();
 
                         frontsContext.fillStyle = '#ffffff';
-                        frontsContext.fillText(text, bx, by);
+                        frontsContext.fillText(text, bx, by + 3.0 / zoomFactor);
                     }
                 }
             }
