@@ -7612,6 +7612,12 @@
         }
         if (pStartSel) pStartSel.addEventListener('change', onPeriodCustomRangeChange);
         if (pEndSel) pEndSel.addEventListener('change', onPeriodCustomRangeChange);
+        var periodDirectTiktok = document.getElementById('amfm-period-direct-tiktok');
+        if (periodDirectTiktok) {
+            periodDirectTiktok.addEventListener('click', function () {
+                downloadTiktokSummaryCard();
+            });
+        }
 
         // Dropdown Export : ouvrir/fermer + fermeture au clic extérieur
         var exportWrap = document.getElementById('amfm-export-wrap');

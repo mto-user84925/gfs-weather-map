@@ -801,6 +801,53 @@
             box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
             transition: transform 0.15s ease;
         }
+        .amfm-btn-tiktok-main {
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .amfm-btn-period-nav {
+            background: rgba(0, 210, 255, 0.15) !important;
+            border: 1px solid rgba(0, 210, 255, 0.45) !important;
+            color: #38bdf8 !important;
+            font-weight: 700 !important;
+        }
+        .amfm-btn-period-nav:hover, .amfm-btn-period-nav.is-active {
+            background: rgba(0, 210, 255, 0.3) !important;
+            border-color: #00d2ff !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.4) !important;
+        }
+        #btn-toggle-period span {
+            display: inline !important;
+        }
+        .amfm-period-tiktok-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 28px;
+            padding: 0 12px;
+            background: linear-gradient(135deg, #0284c7, #00d2ff);
+            color: #070b14 !important;
+            font-size: 11.5px;
+            font-weight: 800;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 210, 255, 0.3);
+            white-space: nowrap;
+            transition: all 0.15s ease;
+        }
+        .amfm-period-tiktok-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 210, 255, 0.45);
+        }
         .amfm-btn-generate-gif:hover { transform: translateY(-1px); }
         .amfm-btn-generate-gif:disabled { opacity: 0.6; cursor: not-allowed; }
         .amfm-progress-container {
@@ -2608,6 +2655,12 @@
 
                     <!-- Sélecteur direct de Calque Météo -->
                     <select id="direct-layer-select" class="amfm-select-layer" aria-label="Sélection du paramètre météorologique">
+                        <optgroup label="🗓️ Synthèse sur Période (Personnalisable)">
+                            <option value="temperature_max_periode">☀️ Températures maximales Tx (Période choisie)</option>
+                            <option value="temperature_min_periode">❄️ Températures minimales Tn (Période choisie)</option>
+                            <option value="pluie_periode">🌧️ Précipitations cumulées (Période choisie)</option>
+                            <option value="rafales_max_periode">⚡ Rafales maximales (Période choisie)</option>
+                        </optgroup>
                         <optgroup label="🗺️ Synoptique & Altitude">
                             <option value="geopotentiel_500">🗺️ Géop. Z500 & Pression au sol (dam/hPa)</option>
                             <option value="temperature_850">🌡️ Température à 850 hPa (~1 500 m)</option>
@@ -2617,8 +2670,6 @@
                             <option value="temperature" selected>🌡️ Température à 2 m (°C)</option>
                             <option value="temperature_min_24h">❄️ Température minimale Tn (24h)</option>
                             <option value="temperature_max_24h">☀️ Température maximale Tx (24h)</option>
-                            <option value="temperature_max_periode">☀️ Température max (Période choisie)</option>
-                            <option value="temperature_min_periode">❄️ Température min (Période choisie)</option>
                             <option value="temperature_ressentie">❄️ Température ressentie (°C)</option>
                             <option value="point_rosee">💧 Point de rosée (°C)</option>
                             <option value="humidex">🔥 Indice Humidex</option>
@@ -2749,8 +2800,8 @@
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
                             <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
                         </button>
-                        <button type="button" class="amfm-btn amfm-btn-toggle" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
-                            <i class="fa-solid fa-calendar-days" aria-hidden="true"></i> <span>Période</span>
+                        <button type="button" class="amfm-btn amfm-btn-toggle amfm-btn-period-nav" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
+                            <i class="fa-solid fa-calendar-days" aria-hidden="true" style="color:#00d2ff;"></i> <span style="font-weight:700;">🗓️ Période</span>
                         </button>
                     </div>
 
@@ -3015,6 +3066,9 @@
                 <span>À :</span>
                 <select id="amfm-period-end" class="amfm-select-mini" aria-label="Jour de fin"></select>
             </div>
+            <button type="button" class="amfm-period-tiktok-btn" id="amfm-period-direct-tiktok" title="Télécharger directement la carte TikTok 1080×1920 pour cette période">
+                <i class="fa-brands fa-tiktok"></i> <span>Export TikTok (1080×1920)</span>
+            </button>
             <button type="button" class="amfm-period-close-btn" id="amfm-period-close" title="Fermer le mode période">✕</button>
         </div>
 
@@ -3249,11 +3303,11 @@
     })();
     </script>
 
-    <script src="js/palettes.js?v=2.7.0"></script>
+    <script src="js/palettes.js?v=20260922-v3"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="js/regions.js?v=2.7.0"></script>
-    <script src="js/arome-map.js?v=20260919-synoptic-balanced-da"></script>
+    <script src="js/arome-map.js?v=20260922-v3"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";

@@ -1,0 +1,82 @@
+﻿name: "Déploiement Front Seul (GitHub Pages)"
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'js/**'
+      - 'config/**'
+      - '.github/workflows/deploy_front.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy-front:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restaurer les données output du dernier run réussi
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base /tmp/base/restored
+          RESTORED=""
+          for RUN_ID in $(gh run list --repo mto-user84925/gfs-weather-map \
+                --status success --limit 10 --json databaseId,workflowName --jq \
+                '.[] | select(.workflowName | test("Build & Deploy")) | .databaseId' 2>/dev/null || true); do
+            echo "Tentative de restauration depuis le run $RUN_ID..."
+            if gh run download "$RUN_ID" --repo mto-user84925/gfs-weather-map \
+                 -n github-pages -D /tmp/base >/dev/null 2>&1; then
+              RESTORED="$RUN_ID"
+              break
+            fi
+          done
+          if [ -n "$RESTORED" ]; then
+            tar -xf /tmp/base/artifact.tar -C /tmp/base/restored
+            cp -r /tmp/base/restored/output ./ 2>/dev/null || true
+            echo "Base restaurée depuis le run $RESTORED"
+          else
+            echo "Attention : Aucun artefact trouvé"
+          fi
+
+      - name: Assemblage du site statique
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp extremes.html _site/ 2>/dev/null || true
+          cp logo*.png _site/ 2>/dev/null || true
+          cp cyclones_actifs.json _site/ 2>/dev/null || true
+          cp output/cyclones_actifs.json _site/ 2>/dev/null || true
+          cp alertes_extremes_monde.json _site/ 2>/dev/null || true
+          cp output/alertes_extremes_monde.json _site/ 2>/dev/null || true
+          touch _site/.nojekyll
+          cp -r js _site/
+          cp -r config _site/ 2>/dev/null || true
+          cp -r output _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: Déploiement sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
