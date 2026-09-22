@@ -2439,6 +2439,112 @@
             border-color: #38bdf8 !important;
             box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
         }
+
+        /* 📅 Barre de Sélection de Synthèse sur Période */
+        .amfm-period-bar {
+            position: absolute;
+            bottom: calc(max(10px, env(safe-area-inset-bottom)) + 58px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 250;
+            background: rgba(10, 18, 34, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 210, 255, 0.4);
+            border-radius: 12px;
+            padding: 6px 12px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75), 0 0 15px rgba(0, 210, 255, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 96vw;
+            flex-wrap: wrap;
+            color: #fff;
+            animation: amfmPeriodBarIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes amfmPeriodBarIn {
+            from { opacity: 0; transform: translate(-50%, 12px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .amfm-period-param-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .amfm-period-label {
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #38bdf8;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .amfm-period-select {
+            height: 32px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(0, 210, 255, 0.3);
+            color: #fff;
+            border-radius: 7px;
+            padding: 0 8px;
+            font-size: 11.5px;
+            font-weight: 700;
+            outline: none;
+            cursor: pointer;
+        }
+        .amfm-period-presets {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .amfm-period-pill {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #94a3b8;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .amfm-period-pill:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+        .amfm-period-pill.is-active {
+            background: linear-gradient(135deg, #0284c7, #00d2ff);
+            color: #070b14;
+            border-color: #38bdf8;
+            font-weight: 800;
+            box-shadow: 0 0 10px rgba(0, 210, 255, 0.4);
+        }
+        .amfm-period-custom-range {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #cbd5e1;
+            white-space: nowrap;
+        }
+        .amfm-period-close-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 13px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        .amfm-period-close-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.15);
+        }
 </style>
 </head>
 <body>
@@ -2511,6 +2617,8 @@
                             <option value="temperature" selected>🌡️ Température à 2 m (°C)</option>
                             <option value="temperature_min_24h">❄️ Température minimale Tn (24h)</option>
                             <option value="temperature_max_24h">☀️ Température maximale Tx (24h)</option>
+                            <option value="temperature_max_periode">☀️ Température max (Période choisie)</option>
+                            <option value="temperature_min_periode">❄️ Température min (Période choisie)</option>
                             <option value="temperature_ressentie">❄️ Température ressentie (°C)</option>
                             <option value="point_rosee">💧 Point de rosée (°C)</option>
                             <option value="humidex">🔥 Indice Humidex</option>
@@ -2519,12 +2627,14 @@
                             <option value="pluie_1h">🌧️ Précipitations 3h (mm)</option>
                             <option value="pluie_24h">🌧️ Précipitations sur 24h (mm)</option>
                             <option value="pluie_cumul">📊 Précipitations cumulées (mm)</option>
+                            <option value="pluie_periode">🌧️ Précipitations cumulées (Période choisie)</option>
                         </optgroup>
                         <optgroup label="💨 Vent & Tempêtes">
                             <option value="vent">💨 Vent moyen à 10 m (km/h)</option>
                             <option value="rafales">⚡ Rafales maximales (km/h)</option>
                             <option value="rafales_max_24h">⚡ Rafales maximales 24h (km/h)</option>
                             <option value="rafales_cumul">🌪️ Rafales max cumulées (km/h)</option>
+                            <option value="rafales_max_periode">🌪️ Rafales maximales (Période choisie)</option>
                         </optgroup>
                         <optgroup label="🌊 Mer & Vagues">
                             <option value="vagues">🌊 Hauteur &amp; Direction des vagues (m)</option>
@@ -2639,6 +2749,9 @@
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
                             <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
                         </button>
+                        <button type="button" class="amfm-btn amfm-btn-toggle" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
+                            <i class="fa-solid fa-calendar-days" aria-hidden="true"></i> <span>Période</span>
+                        </button>
                     </div>
 
                     <div class="amfm-nav-sep"></div>
@@ -2687,9 +2800,40 @@
                             <div class="amfm-export-sec-title">
                                 <i class="fa-brands fa-tiktok"></i> Pack Vidéo TikTok (1080×1920)
                             </div>
-                            <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok-main" data-amfm-capture-tiktok aria-label="Télécharger Pack TikTok 16 Cartes" title="Pack TikTok 16 Cartes (J0 à J15, 1080×1920)">
-                                <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span>Télécharger le Pack 16 Cartes (ZIP)</span>
-                            </button>
+
+                            <!-- Sélecteur de Période TikTok -->
+                            <div style="background:rgba(0,210,255,0.06); border:1px solid rgba(0,210,255,0.25); border-radius:8px; padding:7px 10px; margin-bottom:8px; display:flex; flex-direction:column; gap:5px;">
+                                <div style="font-size:11px; font-weight:800; color:#38bdf8; text-transform:uppercase; letter-spacing:0.4px; display:flex; align-items:center; justify-content:space-between;">
+                                    <span><i class="fa-solid fa-calendar-days"></i> Période TikTok :</span>
+                                    <span id="tiktok-period-badge" style="font-size:10px; background:rgba(0,210,255,0.2); color:#00d2ff; padding:1px 5px; border-radius:4px; font-weight:700;">3 jours</span>
+                                </div>
+                                <select id="tiktok-period-select" class="amfm-tiktok-layout-select" style="height:32px;" title="Choisir la période couverte par l'export TikTok">
+                                    <option value="3j" selected>📅 3 jours (J+0 à J+2)</option>
+                                    <option value="5j">📅 5 jours (J+0 à J+4)</option>
+                                    <option value="7j">📅 7 jours (J+0 à J+6)</option>
+                                    <option value="10j">📅 10 jours (J+0 à J+9)</option>
+                                    <option value="all">⚡ Tout le run (16j / 5j)</option>
+                                    <option value="24h">☀️ Prochaines 24h (J+0)</option>
+                                    <option value="custom">🎛️ Personnalisé (au choix)…</option>
+                                </select>
+                                <div id="tiktok-custom-range-row" style="display:none; align-items:center; gap:6px; font-size:11px; color:#cbd5e1; padding-top:2px;">
+                                    <span>De :</span>
+                                    <select id="tiktok-start-day" class="amfm-select-mini" style="flex:1;"></select>
+                                    <span>À :</span>
+                                    <select id="tiktok-end-day" class="amfm-select-mini" style="flex:1;"></select>
+                                </div>
+                            </div>
+
+                            <!-- Deux Boutons d'Action TikTok : Synthèse Période vs Pack Quotidien -->
+                            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:8px;">
+                                <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok-main" id="btn-tiktok-summary" data-amfm-capture-tiktok-summary style="background:linear-gradient(135deg, #0284c7, #00d2ff) !important; color:#070b14 !important; font-weight:900 !important; box-shadow:0 4px 14px rgba(0,210,255,0.35) !important;" title="Télécharger une seule carte TikTok 1080×1920 synthétisant le pic ou le cumul de la période">
+                                    <i class="fa-solid fa-chart-pie" aria-hidden="true"></i> <span>Carte Synthèse Période (1080×1920)</span>
+                                </button>
+                                <button type="button" class="amfm-btn amfm-btn-download amfm-btn-tiktok-main" data-amfm-capture-tiktok aria-label="Télécharger le Pack Quotidien" title="Pack de cartes jour par jour pour la période sélectionnée">
+                                    <i class="fa-brands fa-tiktok" aria-hidden="true"></i> <span id="tiktok-pack-btn-text">Télécharger Pack Quotidien (ZIP)</span>
+                                </button>
+                            </div>
+
                             <div class="amfm-export-tiktok-box">
                                 <div style="font-size:11px; font-weight:700; color:#8ea2b8; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:4px;">
                                     Format de la carte :
@@ -2845,6 +2989,34 @@
                 <span>-15°</span><span>0°</span><span>15°</span><span>30°</span><span>45°</span>
             </div>
         </aside>
+
+        <!-- 📅 Bandeau Synthèse Période (Tmax, Cumul Pluie, Rafales Max) -->
+        <div class="amfm-period-bar" id="amfm-period-bar" style="display:none;" role="region" aria-label="Sélection de période de synthèse">
+            <div class="amfm-period-param-group">
+                <span class="amfm-period-label"><i class="fa-solid fa-chart-pie"></i> Synthèse :</span>
+                <select id="amfm-period-param-select" class="amfm-period-select" aria-label="Paramètre de synthèse">
+                    <option value="temperature_max_24h" selected>☀️ Température Max (Tx)</option>
+                    <option value="temperature_min_24h">❄️ Température Min (Tn)</option>
+                    <option value="pluie_24h">🌧️ Cumul de Pluie</option>
+                    <option value="rafales_max_24h">⚡ Rafales Maximales</option>
+                </select>
+            </div>
+            <div class="amfm-period-presets">
+                <button type="button" class="amfm-period-pill" data-period-days="1">24h (J+0)</button>
+                <button type="button" class="amfm-period-pill is-active" data-period-days="3">3 jours</button>
+                <button type="button" class="amfm-period-pill" data-period-days="5">5 jours</button>
+                <button type="button" class="amfm-period-pill" data-period-days="7">7 jours</button>
+                <button type="button" class="amfm-period-pill" data-period-days="10">10 jours</button>
+                <button type="button" class="amfm-period-pill" data-period-days="all">Tout le run</button>
+            </div>
+            <div class="amfm-period-custom-range">
+                <span>De :</span>
+                <select id="amfm-period-start" class="amfm-select-mini" aria-label="Jour de début"></select>
+                <span>À :</span>
+                <select id="amfm-period-end" class="amfm-select-mini" aria-label="Jour de fin"></select>
+            </div>
+            <button type="button" class="amfm-period-close-btn" id="amfm-period-close" title="Fermer le mode période">✕</button>
+        </div>
 
         <!-- Timeline Inférieure Compacte -->
         <footer class="amfm-timeline" role="region" aria-label="Contrôle de la timeline et des échéances de prévision">

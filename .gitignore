@@ -9,3 +9,9 @@ __pycache__/
 # OS / éditeurs
 Thumbs.db
 .DS_Store
+
+# Scratch / tests locaux
+scratch/
+deploy_log.txt
+*.png
+*.zip

@@ -740,6 +740,22 @@
         label: 'Épaisseur maximale de neige (24h)', unit: 'cm', decimals: 0, transparent_below: 0,
         stops: PALETTES.neige_au_sol.stops
     };
+    PALETTES.temperature_max_periode = {
+        label: 'Température maximale Tx (Période)', unit: '°C', decimals: 1, transparent_below: null,
+        stops: PALETTES.temperature.stops
+    };
+    PALETTES.temperature_min_periode = {
+        label: 'Température minimale Tn (Période)', unit: '°C', decimals: 1, transparent_below: null,
+        stops: PALETTES.temperature.stops
+    };
+    PALETTES.pluie_periode = {
+        label: 'Cumul de précipitations (Période)', unit: 'mm', decimals: 0, transparent_below: 0,
+        stops: PALETTES.pluie_cumul.stops
+    };
+    PALETTES.rafales_max_periode = {
+        label: 'Rafales maximales (Période)', unit: 'km/h', decimals: 0, transparent_below: 0,
+        stops: PALETTES.rafales.stops
+    };
     PALETTES.geopotentiel_500_meteociel = PALETTES.geopotentiel_500;
 
     // Calques de Probabilités 24h

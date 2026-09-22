@@ -226,7 +226,11 @@ def main():
         "arpege_france",
         "icon_eu_france",
         "gfs_france",
-        "aifs_france"
+        "aifs_france",
+        "gfs",
+        "arpege",
+        "icon_eu",
+        "aifs"
     ]
     with ThreadPoolExecutor(max_workers=4) as executor:
         executor.map(process_model_min_max, models)
@@ -236,7 +240,7 @@ def main():
         
         for input_layer, output_layer in [("rafales", "rafales_max_24h"), ("mucape", "mucape_max_24h"), ("neige_au_sol", "neige_24h")]:
             executor.map(make_task(input_layer, output_layer), models)
-    print("✅ [daily_min_max] Calcul Tn/Tx et autres 24h terminé pour tous les modèles France.", flush=True)
+    print("✅ [daily_min_max] Calcul Tn/Tx et autres 24h terminé pour tous les modèles (France & Europe).", flush=True)
 
 
 if __name__ == "__main__":

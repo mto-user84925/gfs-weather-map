@@ -466,6 +466,12 @@
         }
 
         function probeCell(grid, x, y) {
+            if (!grid) return null;
+            if (grid.data) {
+                var v = grid.data[y * grid.width + x];
+                return (v === undefined || isNaN(v)) ? null : v;
+            }
+            if (!grid.view) return null;
             var code = grid.view.getUint16(
                 16 + (y * grid.width + x) * 2,
                 true
@@ -692,7 +698,7 @@
             }
             lastHover = { x: clientX, y: clientY };
             var position = pointerMapPosition(clientX, clientY);
-            var layer = manifest.layers[currentLayer];
+            var layer = (manifest.layers && manifest.layers[currentLayer]) || (window.WEATHER_PALETTES && window.WEATHER_PALETTES[currentLayer]);
             if (!position || !layer) {
                 probe.hidden = true;
                 return;
@@ -780,7 +786,7 @@
                 return;
             }
             var position = pointerMapPosition(clientX, clientY);
-            var layer = manifest.layers[currentLayer];
+            var layer = (manifest.layers && manifest.layers[currentLayer]) || (window.WEATHER_PALETTES && window.WEATHER_PALETTES[currentLayer]);
             if (!position || !layer) {
                 return;
             }
@@ -2076,7 +2082,7 @@
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // EXPORT PACK TIKTOK 12 CARTES (J0 à J11, 1080×1920, Fond transparent)
+        // RESSOURCES CARTOGRAPHIQUES TIKTOK (1080×1920)
         // ────────────────────────────────────────────────────────────────────
         var tiktokAssets = null;
         function loadTiktokAssets() {
@@ -2125,26 +2131,962 @@
         }
         loadTiktokAssets().catch(function() {});
 
+        // ────────────────────────────────────────────────────────────────────
+        // MOTEUR DE COMPOSITE SUR PÉRIODE & RENDU PHYSIQUE FLOAT32
+        // ────────────────────────────────────────────────────────────────────
+        var periodProbeCache = new Map();
+        var paletteLutCache = new Map();
 
+        function decodeProbeToFloat32(grid) {
+            if (!grid) return null;
+            if (grid.data) return grid.data;
+            var len = grid.width * grid.height;
+            var out = new Float32Array(len);
+            var view = grid.view;
+            if (!view) return null;
+            var min = grid.minimum;
+            var max = grid.maximum;
+            var span = max - min;
+            var offset = 16;
+            for (var i = 0; i < len; i++) {
+                var code = view.getUint16(offset + i * 2, true);
+                if (code === 65535) {
+                    out[i] = NaN;
+                } else {
+                    out[i] = min + (code / 65534) * span;
+                }
+            }
+            return out;
+        }
+
+        function getOrBuildPaletteLut(layerKey) {
+            var baseKey = layerKey || 'temperature';
+            if (baseKey.indexOf('_periode') !== -1) {
+                if (baseKey.indexOf('temperature_max') !== -1) baseKey = 'temperature_max_24h';
+                else if (baseKey.indexOf('temperature_min') !== -1) baseKey = 'temperature_min_24h';
+                else if (baseKey.indexOf('pluie') !== -1) baseKey = 'pluie_24h';
+                else if (baseKey.indexOf('rafale') !== -1) baseKey = 'rafales_max_24h';
+            }
+            if (paletteLutCache.has(baseKey)) {
+                return paletteLutCache.get(baseKey);
+            }
+
+            var pal = (window.getLayerPalette && window.getLayerPalette(baseKey)) || { stops: [] };
+            var stops = (pal.stops || []).map(function(s) {
+                var rgb = parseColour(s.color);
+                return { value: Number(s.value), r: rgb[0], g: rgb[1], b: rgb[2] };
+            });
+            stops.sort(function(a, b) { return a.value - b.value; });
+
+            var minR = -40, maxR = 60, step = 0.1;
+            if (baseKey.indexOf('pluie') !== -1 || baseKey.indexOf('precipitations') !== -1) {
+                minR = 0; maxR = 500; step = 0.1;
+            } else if (baseKey.indexOf('rafale') !== -1 || baseKey.indexOf('vent') !== -1) {
+                minR = 0; maxR = 300; step = 0.2;
+            } else if (stops.length > 0) {
+                minR = stops[0].value - 5;
+                maxR = stops[stops.length - 1].value + 5;
+                step = (maxR - minR) / 1000;
+            }
+
+            var transparentBelow = (pal.transparent_below !== null && pal.transparent_below !== undefined) ? pal.transparent_below : null;
+            var numEntries = Math.floor((maxR - minR) / step) + 1;
+            var lut = new Uint32Array(numEntries);
+
+            for (var i = 0; i < numEntries; i++) {
+                var val = minR + i * step;
+                if (transparentBelow !== null && val <= transparentBelow) {
+                    lut[i] = 0x00000000;
+                    continue;
+                }
+                if (!stops.length) {
+                    lut[i] = 0xffffffff;
+                    continue;
+                }
+                var r = 0, g = 0, b = 0;
+                if (val <= stops[0].value) {
+                    r = stops[0].r; g = stops[0].g; b = stops[0].b;
+                } else if (val >= stops[stops.length - 1].value) {
+                    var last = stops[stops.length - 1];
+                    r = last.r; g = last.g; b = last.b;
+                } else {
+                    for (var k = 0; k < stops.length - 1; k++) {
+                        if (val >= stops[k].value && val <= stops[k + 1].value) {
+                            var s0 = stops[k], s1 = stops[k + 1];
+                            var f = (val - s0.value) / (s1.value - s0.value || 1);
+                            r = Math.round(s0.r + f * (s1.r - s0.r));
+                            g = Math.round(s0.g + f * (s1.g - s0.g));
+                            b = Math.round(s0.b + f * (s1.b - s0.b));
+                            break;
+                        }
+                    }
+                }
+                lut[i] = (255 << 24) | (b << 16) | (g << 8) | r;
+            }
+
+            var result = {
+                lut: lut,
+                minRange: minR,
+                maxRange: maxR,
+                step: step,
+                invStep: 1 / step,
+                numEntries: numEntries
+            };
+            paletteLutCache.set(baseKey, result);
+            return result;
+        }
+
+        function renderFloatGridToCanvas(srcData, srcW, srcH, targetW, targetH, paletteLut) {
+            var canvas = document.createElement('canvas');
+            canvas.width = targetW;
+            canvas.height = targetH;
+            var ctx = canvas.getContext('2d');
+            var imgData = ctx.createImageData(targetW, targetH);
+            var u32 = new Uint32Array(imgData.data.buffer);
+
+            var lut = paletteLut.lut;
+            var minR = paletteLut.minRange;
+            var maxR = paletteLut.maxRange;
+            var invStep = paletteLut.invStep;
+            var maxIdx = paletteLut.numEntries - 1;
+
+            var scaleX = (srcW - 1) / (targetW - 1);
+            var scaleY = (srcH - 1) / (targetH - 1);
+
+            var idx = 0;
+            for (var ty = 0; ty < targetH; ty++) {
+                var sy = ty * scaleY;
+                var y0 = Math.floor(sy);
+                var y1 = Math.min(y0 + 1, srcH - 1);
+                var fy = sy - y0;
+                var ify = 1 - fy;
+                var row0 = y0 * srcW;
+                var row1 = y1 * srcW;
+
+                for (var tx = 0; tx < targetW; tx++) {
+                    var sx = tx * scaleX;
+                    var x0 = Math.floor(sx);
+                    var x1 = Math.min(x0 + 1, srcW - 1);
+                    var fx = sx - x0;
+                    var ifx = 1 - fx;
+
+                    var v00 = srcData[row0 + x0];
+                    var v10 = srcData[row0 + x1];
+                    var v01 = srcData[row1 + x0];
+                    var v11 = srcData[row1 + x1];
+
+                    var val = (v00 * ifx + v10 * fx) * ify + (v01 * ifx + v11 * fx) * fy;
+
+                    if (isNaN(val) || val < minR) {
+                        u32[idx++] = 0;
+                    } else if (val >= maxR) {
+                        u32[idx++] = lut[maxIdx];
+                    } else {
+                        var lIdx = ((val - minR) * invStep) | 0;
+                        u32[idx++] = lut[lIdx];
+                    }
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+            return canvas;
+        }
+
+        function getSourceLayerForPeriodParam(paramKey) {
+            if (!manifest || !manifest.layers) return paramKey;
+            if (paramKey.indexOf('temperature_max') !== -1) {
+                return manifest.layers['temperature_max_24h'] ? 'temperature_max_24h' : 'temperature';
+            }
+            if (paramKey.indexOf('temperature_min') !== -1) {
+                return manifest.layers['temperature_min_24h'] ? 'temperature_min_24h' : 'temperature';
+            }
+            if (paramKey.indexOf('pluie') !== -1 || paramKey.indexOf('precipitations') !== -1) {
+                return manifest.layers['pluie_24h'] ? 'pluie_24h' : (manifest.layers['pluie_cumul'] ? 'pluie_cumul' : 'pluie_1h');
+            }
+            if (paramKey.indexOf('rafale') !== -1 || paramKey.indexOf('vent') !== -1) {
+                return manifest.layers['rafales_max_24h'] ? 'rafales_max_24h' : 'rafales';
+            }
+            return paramKey;
+        }
+
+        function getPeriodParamMeta(paramKey) {
+            if (paramKey.indexOf('temperature_max') !== -1) {
+                return { label: 'Températures maximales Tx', unit: '°C', operation: 'max' };
+            }
+            if (paramKey.indexOf('temperature_min') !== -1) {
+                return { label: 'Températures minimales Tn', unit: '°C', operation: 'min' };
+            }
+            if (paramKey.indexOf('pluie') !== -1 || paramKey.indexOf('precipitations') !== -1) {
+                return { label: 'Cumul de précipitations', unit: 'mm', operation: 'sum' };
+            }
+            if (paramKey.indexOf('rafale') !== -1 || paramKey.indexOf('vent') !== -1) {
+                return { label: 'Rafales de vent maximales', unit: 'km/h', operation: 'max' };
+            }
+            return { label: 'Synthèse Période', unit: '', operation: 'max' };
+        }
+
+        function getDailyStepsForParam(paramKey) {
+            if (!manifest || !manifest.steps) return [];
+            var sourceLayer = getSourceLayerForPeriodParam(paramKey);
+            var steps = manifest.steps.filter(function(s) {
+                return s && s.probes && s.probes[sourceLayer];
+            });
+            if (steps.length >= 2) return steps;
+            steps = manifest.steps.filter(function(s) {
+                return s && s.files && s.files[sourceLayer];
+            });
+            if (steps.length >= 2) return steps;
+            return getTiktokSteps(sourceLayer);
+        }
+
+        function formatDateFr(isoDateStr) {
+            if (!isoDateStr) return '';
+            try {
+                var d = new Date(isoDateStr);
+                var day = String(d.getDate()).padStart(2, '0');
+                var month = String(d.getMonth() + 1).padStart(2, '0');
+                return day + '/' + month;
+            } catch(e) {
+                return (isoDateStr || '').slice(0, 10);
+            }
+        }
+
+        function computePeriodComposite(paramKey, startDayIdx, endDayIdx) {
+            if (!manifest || !manifest.steps) {
+                return Promise.reject(new Error('Manifeste non disponible'));
+            }
+            var sourceLayer = getSourceLayerForPeriodParam(paramKey);
+            var meta = getPeriodParamMeta(paramKey);
+            var dailySteps = getDailyStepsForParam(paramKey);
+            if (!dailySteps || !dailySteps.length) {
+                return Promise.reject(new Error('Aucune échéance quotidienne trouvée pour ce paramètre'));
+            }
+
+            var sIdx = clamp(startDayIdx, 0, dailySteps.length - 1);
+            var eIdx = clamp(endDayIdx, sIdx, dailySteps.length - 1);
+            var targetSteps = dailySteps.slice(sIdx, eIdx + 1);
+
+            var loadPromises = targetSteps.map(function(step) {
+                var path = step.probes && step.probes[sourceLayer];
+                if (!path) return Promise.resolve(null);
+                var fullUrl = versioned(path);
+                if (periodProbeCache.has(fullUrl)) {
+                    return Promise.resolve(periodProbeCache.get(fullUrl));
+                }
+                return fetchBuffer(fullUrl)
+                    .then(decompressIfNeeded)
+                    .then(parseProbe)
+                    .then(function(grid) {
+                        var f32 = decodeProbeToFloat32(grid);
+                        var res = { width: grid.width, height: grid.height, data: f32 };
+                        periodProbeCache.set(fullUrl, res);
+                        return res;
+                    })
+                    .catch(function(err) {
+                        console.warn('Erreur chargement probe période:', path, err);
+                        return null;
+                    });
+            });
+
+            return Promise.all(loadPromises).then(function(results) {
+                var valid = results.filter(function(r) { return r && r.data; });
+                if (!valid.length) {
+                    throw new Error('Données physiques (probes) indisponibles pour la période');
+                }
+
+                var width = valid[0].width;
+                var height = valid[0].height;
+                var len = width * height;
+                var composite = new Float32Array(len);
+                var op = meta.operation;
+
+                for (var i = 0; i < len; i++) {
+                    if (op === 'max') {
+                        var mVal = -Infinity;
+                        for (var g = 0; g < valid.length; g++) {
+                            var v = valid[g].data[i];
+                            if (!isNaN(v) && v > mVal) mVal = v;
+                        }
+                        composite[i] = (mVal === -Infinity) ? NaN : mVal;
+                    } else if (op === 'min') {
+                        var minVal = Infinity;
+                        for (var g = 0; g < valid.length; g++) {
+                            var v = valid[g].data[i];
+                            if (!isNaN(v) && v < minVal) minVal = v;
+                        }
+                        composite[i] = (minVal === Infinity) ? NaN : minVal;
+                    } else if (op === 'sum') {
+                        var sVal = 0, has = false;
+                        for (var g = 0; g < valid.length; g++) {
+                            var v = valid[g].data[i];
+                            if (!isNaN(v)) { sVal += v; has = true; }
+                        }
+                        composite[i] = has ? sVal : NaN;
+                    }
+                }
+
+                var globalMin = Infinity, globalMax = -Infinity;
+                for (var i = 0; i < len; i++) {
+                    var cv = composite[i];
+                    if (!isNaN(cv)) {
+                        if (cv < globalMin) globalMin = cv;
+                        if (cv > globalMax) globalMax = cv;
+                    }
+                }
+
+                var lutInfo = getOrBuildPaletteLut(sourceLayer);
+                var compositeCanvas = renderFloatGridToCanvas(composite, width, height, 2200, 1640, lutInfo);
+
+                var compositeProbe = {
+                    width: width,
+                    height: height,
+                    minimum: globalMin,
+                    maximum: globalMax,
+                    data: composite
+                };
+
+                var startStep = targetSteps[0];
+                var endStep = targetSteps[targetSteps.length - 1];
+                var dStart = formatDateFr(startStep.valid_time);
+                var dEnd = formatDateFr(endStep.valid_time);
+
+                return {
+                    canvas: compositeCanvas,
+                    probe: compositeProbe,
+                    minVal: globalMin,
+                    maxVal: globalMax,
+                    dateStartStr: dStart,
+                    dateEndStr: dEnd,
+                    numDays: targetSteps.length,
+                    targetSteps: targetSteps,
+                    sourceLayer: sourceLayer,
+                    label: meta.label,
+                    unit: meta.unit,
+                    operation: meta.operation
+                };
+            });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // RENDU TIKTOK UNIFIÉ 1080×1920 (Cartouches TV, Lignes 11px, Valeurs 82px)
+        // ────────────────────────────────────────────────────────────────────
+        function renderTiktokCardToCanvas(options) {
+            var img = options.img;
+            var probe = options.probe || null;
+            var layerKey = options.layerKey || currentLayer;
+            var titleText = options.titleText;
+            var modelText = options.modelText;
+            var runText = options.runText;
+            var dateText = options.dateText;
+            var leadTag = options.leadTag;
+            var assets = options.assets;
+            var tiktokStyle = options.tiktokStyle || 'clean';
+            var includeFronts = (options.includeFronts !== undefined) ? options.includeFronts : true;
+            var includeBranding = (tiktokStyle === 'broadcast');
+            var includeValues = !!options.includeValues;
+            var layoutMode = options.layoutMode || 'bureau';
+
+            // 1. Calque métropole masqué
+            var mCanvas = document.createElement('canvas');
+            mCanvas.width = 2200;
+            mCanvas.height = 1640;
+            var mCtx = mCanvas.getContext('2d');
+            mCtx.drawImage(img, 0, 0, 2200, 1640);
+            mCtx.globalCompositeOperation = 'destination-in';
+            mCtx.drawImage(assets.maskMainland, 0, 0, 2200, 1640);
+
+            // 2. Calque Corse masqué
+            var cCanvas = document.createElement('canvas');
+            cCanvas.width = 2200;
+            cCanvas.height = 1640;
+            var cCtx = cCanvas.getContext('2d');
+            cCtx.drawImage(img, 0, 0, 2200, 1640);
+            cCtx.globalCompositeOperation = 'destination-in';
+            cCtx.drawImage(assets.maskCorse, 0, 0, 2200, 1640);
+
+            // 3. Assemblage 2200×1640
+            var composeCanvas = document.createElement('canvas');
+            composeCanvas.width = 2200;
+            composeCanvas.height = 1640;
+            var compCtx = composeCanvas.getContext('2d');
+            compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
+            compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
+            compCtx.drawImage(cCanvas, -150, 0, 2200, 1640); // Corse décalée de -150px
+            compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
+
+            // 4. Lignes TV broadcast épaisses (11px)
+            var frontsData = null;
+            if (includeFronts) {
+                frontsData = computeTvFrontsData(img, layerKey, assets ? assets.maskMainland : null);
+                if (frontsData && frontsData.lines && frontsData.lines.length) {
+                    var fCanvas = document.createElement('canvas');
+                    fCanvas.width = 2200;
+                    fCanvas.height = 1640;
+                    var fCtx = fCanvas.getContext('2d');
+                    fCtx.lineCap = 'round';
+                    fCtx.lineJoin = 'round';
+                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                    fCtx.shadowBlur = 14;
+                    fCtx.shadowOffsetX = 4;
+                    fCtx.shadowOffsetY = 4;
+                    fCtx.strokeStyle = '#ffffff';
+                    fCtx.lineWidth = 11;
+
+                    for (var li = 0; li < frontsData.lines.length; li++) {
+                        var line = frontsData.lines[li];
+                        if (line.length < 2) continue;
+                        fCtx.beginPath();
+                        fCtx.moveTo(line[0][0] * 2200, line[0][1] * 1640);
+                        for (var pi = 1; pi < line.length; pi++) {
+                            fCtx.lineTo(line[pi][0] * 2200, line[pi][1] * 1640);
+                        }
+                        fCtx.stroke();
+                    }
+
+                    var mfCanvas = document.createElement('canvas');
+                    mfCanvas.width = 2200;
+                    mfCanvas.height = 1640;
+                    var mfCtx = mfCanvas.getContext('2d');
+                    mfCtx.drawImage(fCanvas, 0, 0);
+                    mfCtx.globalCompositeOperation = 'destination-in';
+                    mfCtx.drawImage(assets.maskMainland, 0, 0);
+                    compCtx.drawImage(mfCanvas, 0, 0);
+                }
+            }
+
+            // 5. Cadrage et centrage sur canevas TikTok 1080×1920
+            var ttCanvas = document.createElement('canvas');
+            ttCanvas.width = 1080;
+            ttCanvas.height = 1920;
+            var ttCtx = ttCanvas.getContext('2d');
+            ttCtx.clearRect(0, 0, 1080, 1920);
+
+            var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
+            var targetW = 1040;
+            var targetH = Math.round(targetW * (cropH / cropW));
+            var targetX = Math.round((1080 - targetW) / 2);
+            var targetY = Math.round((1920 - targetH) / 2);
+
+            ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+
+            var ttOccupied = [];
+            if (includeBranding) {
+                ttOccupied.push({ left: 0, right: 1080, top: 0, bottom: 250 });
+                ttOccupied.push({ left: 0, right: 1080, top: 1560, bottom: 1920 });
+            }
+
+            // 6. Cartouches TV broadcast (Badges)
+            if (includeFronts && frontsData && frontsData.badges && frontsData.badges.length) {
+                var allBadgesToDraw = frontsData.badges.slice();
+                if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
+                    try {
+                        var corseSampler = cCanvas.getContext('2d');
+                        var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
+                        if (cPix[3] > 20) {
+                            var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(layerKey));
+                            if (cVal !== null && Number.isFinite(cVal)) {
+                                var cLabel = '';
+                                if (layerKey.indexOf('temperature') !== -1) {
+                                    var c0 = Math.floor(cVal / 2) * 2;
+                                    var c1 = c0 + 2;
+                                    cLabel = c0 + ' à ' + c1 + ' °C';
+                                } else if (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precipitations') !== -1) {
+                                    cLabel = Math.round(cVal) + ' mm';
+                                } else if (layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafales') !== -1) {
+                                    cLabel = Math.round(cVal) + ' km/h';
+                                } else {
+                                    var uName = (window.getLayerPalette && window.getLayerPalette(layerKey) && window.getLayerPalette(layerKey).unit) || '';
+                                    cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                }
+                                allBadgesToDraw.push({
+                                    u: 1710 / 2200,
+                                    v: 1310 / 1640,
+                                    label: cLabel,
+                                    isCorse: true
+                                });
+                            }
+                        }
+                    } catch(eCorse) {}
+                }
+
+                allBadgesToDraw.sort(function(a, b) {
+                    if (a.isHotspot && !b.isHotspot) return -1;
+                    if (!a.isHotspot && b.isHotspot) return 1;
+                    if (a.isCorse && !b.isCorse) return -1;
+                    if (!a.isCorse && b.isCorse) return 1;
+                    if (a.isColdspot && !b.isColdspot) return -1;
+                    if (!a.isColdspot && b.isColdspot) return 1;
+                    return (b.clearance || 0) - (a.clearance || 0);
+                });
+
+                var bFontSize = 50;
+                ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+                for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
+                    var badge = allBadgesToDraw[bi];
+                    var cx = badge.u * 2200;
+                    var cy = badge.v * 1640;
+                    if (badge.isCorse) cx -= 255;
+                    if (badge.isBretagne) cx += 60;
+                    var bx = targetX + (cx - cropX) * (targetW / cropW);
+                    var by = targetY + (cy - cropY) * (targetH / cropH);
+
+                    if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
+
+                    if (badge.isSynoptic) {
+                        var radius = 72;
+                        var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
+                        var ptwEst = 145;
+                        var estPbw = ptwEst + 40;
+                        var estPbh = 62;
+                        var estPby = by + radius + 34;
+
+                        var bRect = {
+                            left: bx - Math.max(radius, estPbw / 2) - 14,
+                            right: bx + Math.max(radius, estPbw / 2) + 14,
+                            top: by - radius - 14,
+                            bottom: estPby + estPbh / 2 + 14
+                        };
+                        var clash = false;
+                        for (var oi = 0; oi < ttOccupied.length; oi++) {
+                            var occ = ttOccupied[oi];
+                            if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                clash = true;
+                                break;
+                            }
+                        }
+                        if (clash) continue;
+                        ttOccupied.push(bRect);
+
+                        ttCtx.save();
+                        ttCtx.shadowColor = 'rgba(0, 0, 0, 0.88)';
+                        ttCtx.shadowBlur = 18;
+                        ttCtx.shadowOffsetX = 5;
+                        ttCtx.shadowOffsetY = 5;
+                        ttCtx.fillStyle = discColor;
+                        ttCtx.strokeStyle = '#ffffff';
+                        ttCtx.lineWidth = 7.0;
+                        ttCtx.beginPath();
+                        ttCtx.arc(bx, by, radius, 0, Math.PI * 2);
+                        ttCtx.fill();
+                        ttCtx.stroke();
+
+                        ttCtx.shadowColor = 'transparent';
+                        ttCtx.shadowBlur = 0;
+                        ttCtx.fillStyle = '#ffffff';
+                        ttCtx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        ttCtx.textAlign = 'center';
+                        ttCtx.textBaseline = 'middle';
+                        ttCtx.fillText(badge.actionType, bx, by + 1.5);
+
+                        if (badge.pressureText) {
+                            ttCtx.font = '900 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                            var ptw = ttCtx.measureText(badge.pressureText).width;
+                            var pbw = ptw + 40;
+                            var pbh = 62;
+                            var pby = by + radius + 34;
+
+                            ttCtx.shadowColor = 'rgba(0, 0, 0, 0.82)';
+                            ttCtx.shadowBlur = 14;
+                            ttCtx.shadowOffsetX = 4;
+                            ttCtx.shadowOffsetY = 4;
+                            ttCtx.fillStyle = 'rgba(10, 14, 24, 0.96)';
+                            ttCtx.strokeStyle = '#ffffff';
+                            ttCtx.lineWidth = 4.0;
+                            ttCtx.beginPath();
+                            if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 16);
+                            else ttCtx.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
+                            ttCtx.fill();
+                            ttCtx.stroke();
+
+                            ttCtx.shadowColor = 'transparent';
+                            ttCtx.shadowBlur = 0;
+                            ttCtx.fillStyle = '#ffffff';
+                            ttCtx.fillText(badge.pressureText, bx, pby + 3.5);
+                        }
+                        ttCtx.restore();
+                    } else {
+                        var text = badge.label;
+                        ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        var tw = ttCtx.measureText(text).width;
+                        var padX = 26, padY = 14;
+                        var bw = Math.max(220, tw + padX * 2);
+                        var bh = bFontSize + padY * 2;
+                        var rad = 18;
+
+                        var bRect = {
+                            left: bx - bw / 2 - 10,
+                            right: bx + bw / 2 + 10,
+                            top: by - bh / 2 - 10,
+                            bottom: by + bh / 2 + 10
+                        };
+                        var clash = false;
+                        for (var oi = 0; oi < ttOccupied.length; oi++) {
+                            var occ = ttOccupied[oi];
+                            if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                clash = true;
+                                break;
+                            }
+                        }
+                        if (clash) continue;
+                        ttOccupied.push(bRect);
+
+                        ttCtx.save();
+                        ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                        ttCtx.shadowBlur = 14;
+                        ttCtx.shadowOffsetX = 4.5;
+                        ttCtx.shadowOffsetY = 4.5;
+                        ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
+                        ttCtx.strokeStyle = '#ffffff';
+                        ttCtx.lineWidth = 3.5;
+                        ttCtx.beginPath();
+                        if (typeof ttCtx.roundRect === 'function') {
+                            ttCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
+                        } else {
+                            ttCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
+                        }
+                        ttCtx.fill();
+                        ttCtx.stroke();
+
+                        ttCtx.shadowColor = 'transparent';
+                        ttCtx.shadowBlur = 0;
+                        ttCtx.fillStyle = '#ffffff';
+                        ttCtx.textAlign = 'center';
+                        ttCtx.textBaseline = 'middle';
+                        ttCtx.fillText(text, bx, by + 4);
+                        ttCtx.restore();
+                    }
+                }
+            }
+
+            // 7. Incrustation des valeurs numériques TV (82px)
+            if (includeValues && places && places.length) {
+                var samplerCtx = null;
+                var imgData = null;
+                var layerPal = (window.getLayerPalette && window.getLayerPalette(layerKey));
+                if (!probe) {
+                    samplerCtx = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+                    samplerCtx.canvas.width = img.width || 2200;
+                    samplerCtx.canvas.height = img.height || 1640;
+                    samplerCtx.drawImage(img, 0, 0);
+                    imgData = samplerCtx.getImageData(0, 0, samplerCtx.canvas.width, samplerCtx.canvas.height).data;
+                }
+
+                var isTemp = (layerKey.indexOf('temperature') !== -1);
+                var valsData = [];
+
+                if (layoutMode === 'bureau') {
+                    var bureauCities = [
+                        ["Paris", 48.85, 2.35], ["Brest", 48.39, -4.48], ["Rennes", 48.11, -1.67],
+                        ["Cherbourg", 49.63, -1.62], ["Rouen", 49.44, 1.10], ["Lille", 50.62, 3.05],
+                        ["Boulogne-sur-Mer", 50.726, 1.614], ["Reims", 49.25, 4.03], ["Metz", 49.11, 6.17],
+                        ["Nantes", 47.21, -1.55], ["Tours", 47.39, 0.68], ["Auxerre", 47.79, 3.57],
+                        ["Chaumont", 48.11, 5.14], ["Strasbourg", 48.57, 7.75], ["Bourges", 47.08, 2.39],
+                        ["Belfort", 47.63, 6.86], ["Limoges", 45.83, 1.26], ["Vichy", 46.12, 3.42],
+                        ["Lyon", 45.76, 4.83], ["Pontarlier", 46.90, 6.35], ["La Rochelle", 46.16, -1.15],
+                        ["Bordeaux", 44.83, -0.57], ["Biarritz", 43.48, -1.56], ["Tarbes", 43.23, 0.07],
+                        ["Toulouse", 43.60, 1.44], ["Aurillac", 44.92, 2.44], ["Montélimar", 44.55, 4.75],
+                        ["Gap", 44.55, 6.07], ["Perpignan", 42.69, 2.89], ["Montpellier", 43.61, 3.87],
+                        ["Marseille", 43.296, 5.381], ["Amiens", 49.894, 2.295], ["Nice", 43.71, 7.26],
+                        ["Ajaccio", 41.92, 8.73], ["Bastia", 42.69, 9.45], ["Alençon", 48.43, 0.09],
+                        ["Bourg-St-Maurice", 45.62, 6.77], ["Chalon/Saône", 46.78, 4.85], ["Agen", 44.20, 0.61]
+                    ];
+
+                    for (var bpi = 0; bpi < bureauCities.length; bpi++) {
+                        var c = bureauCities[bpi];
+                        var coords = projectCoords(c[1], c[2]);
+                        var u = coords.u, v = coords.v;
+                        if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+
+                        var val = null;
+                        if (probe) {
+                            val = sampleProbe(probe, u, v);
+                        } else if (imgData) {
+                            var px = Math.round(u * (samplerCtx.canvas.width - 1));
+                            var py = Math.round(v * (samplerCtx.canvas.height - 1));
+                            var pidx = (py * samplerCtx.canvas.width + px) * 4;
+                            if (imgData[pidx + 3] > 12) {
+                                val = valueFromColour(imgData[pidx], imgData[pidx + 1], imgData[pidx + 2], layerPal);
+                            }
+                        }
+                        if (val === null || !Number.isFinite(val)) continue;
+                        if (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('neige') !== -1) {
+                            if (val < 0.2) continue;
+                        }
+
+                        var cx = u * 2200;
+                        var cy = v * 1640;
+                        var isCorse = (c[2] > 8.4 && c[1] < 43.1);
+                        if (isCorse) cx -= 150;
+
+                        var tx = targetX + (cx - cropX) * (targetW / cropW);
+                        var ty = targetY + (cy - cropY) * (targetH / cropH);
+
+                        var bRect = { left: tx - 50, right: tx + 50, top: ty - 34, bottom: ty + 34 };
+                        var clash = false;
+                        for (var oi = 0; oi < ttOccupied.length; oi++) {
+                            var occ = ttOccupied[oi];
+                            if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                clash = true;
+                                break;
+                            }
+                        }
+                        if (clash) continue;
+                        ttOccupied.push(bRect);
+                        valsData.push({ text: String(Math.round(val)), val: Math.round(val), tx: tx, ty: ty });
+                    }
+                } else {
+                    var tvCities = [
+                        "Paris", "Lille", "Brest", "Strasbourg", "Lyon", "Bordeaux",
+                        "Marseille", "Nice", "Toulouse", "Nantes", "Rennes", "Clermont-Ferrand",
+                        "Dijon", "Montpellier", "Perpignan", "Biarritz", "Limoges", "Tours",
+                        "Reims", "Ajaccio", "Cherbourg-en-Cotentin", "Caen", "Amiens",
+                        "Bourges", "Poitiers", "La Rochelle", "Aurillac", "Metz", "Bastia",
+                        "Rouen", "Besançon", "Pau", "Grenoble"
+                    ];
+                    var targetPlaces = [];
+                    for (var tvi = 0; tvi < tvCities.length; tvi++) {
+                        var cName = tvCities[tvi];
+                        for (var pi = 0; pi < places.length; pi++) {
+                            if (places[pi][0] === cName) { targetPlaces.push(places[pi]); break; }
+                        }
+                    }
+
+                    var placedBoxes = [];
+                    var shifts = [
+                        { dx: 0, dy: 0 }, { dx: 0, dy: -22 }, { dx: 0, dy: 22 }, { dx: -24, dy: 0 }, { dx: 24, dy: 0 },
+                        { dx: -22, dy: -22 }, { dx: 22, dy: -22 }, { dx: -22, dy: 22 }, { dx: 22, dy: 22 }
+                    ];
+
+                    for (var pi = 0; pi < targetPlaces.length; pi++) {
+                        var place = targetPlaces[pi];
+                        var coords = projectCoords(Number(place[2]), Number(place[3]));
+                        var u = coords.u, v = coords.v;
+                        if (u < 0 || u > 1 || v < 0 || v > 1) continue;
+
+                        var val = null;
+                        if (probe) {
+                            val = sampleProbe(probe, u, v);
+                        } else if (imgData) {
+                            var px = Math.round(u * (samplerCtx.canvas.width - 1));
+                            var py = Math.round(v * (samplerCtx.canvas.height - 1));
+                            var pidx = (py * samplerCtx.canvas.width + px) * 4;
+                            if (imgData[pidx + 3] > 12) {
+                                val = valueFromColour(imgData[pidx], imgData[pidx + 1], imgData[pidx + 2], layerPal);
+                            }
+                        }
+                        if (val === null || !Number.isFinite(val)) continue;
+                        if (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('neige') !== -1) {
+                            if (val < 0.2) continue;
+                        }
+
+                        var cx = u * 2200;
+                        var cy = v * 1640;
+                        var isCorse = Number(place[3]) > 8.4 && Number(place[2]) < 43.1;
+                        if (isCorse) cx -= 150;
+
+                        var tx = targetX + (cx - cropX) * (targetW / cropW);
+                        var ty = targetY + (cy - cropY) * (targetH / cropH);
+                        var strVal = String(Math.round(val));
+                        var bWidth = (strVal.length > 2 ? 104 : 88);
+                        var bHeight = 74;
+
+                        var bestPos = null;
+                        for (var si = 0; si < shifts.length; si++) {
+                            var nx = tx + shifts[si].dx;
+                            var ny = ty + shifts[si].dy;
+                            var rect = { x1: nx - bWidth / 2, y1: ny - bHeight / 2, x2: nx + bWidth / 2, y2: ny + bHeight / 2 };
+                            var collides = false;
+                            for (var oi = 0; oi < ttOccupied.length; oi++) {
+                                var occ = ttOccupied[oi];
+                                if (rect.x1 < occ.right && rect.x2 > occ.left && rect.y1 < occ.bottom && rect.y2 > occ.top) {
+                                    collides = true; break;
+                                }
+                            }
+                            if (!collides) {
+                                for (var bi = 0; bi < placedBoxes.length; bi++) {
+                                    var b = placedBoxes[bi];
+                                    if (rect.x1 < b.x2 + 8 && rect.x2 > b.x1 - 8 && rect.y1 < b.y2 + 8 && rect.y2 > b.y1 - 8) {
+                                        collides = true; break;
+                                    }
+                                }
+                            }
+                            if (!collides) {
+                                bestPos = { x: nx, y: ny, rect: rect };
+                                break;
+                            }
+                        }
+                        if (!bestPos) continue;
+                        placedBoxes.push(bestPos.rect);
+                        valsData.push({ text: strVal, val: Math.round(val), tx: bestPos.x, ty: bestPos.y });
+                    }
+                }
+
+                var minCityVal = Infinity, maxCityVal = -Infinity;
+                if (isTemp && valsData.length > 0) {
+                    for (var i = 0; i < valsData.length; i++) {
+                        if (valsData[i].val < minCityVal) minCityVal = valsData[i].val;
+                        if (valsData[i].val > maxCityVal) maxCityVal = valsData[i].val;
+                    }
+                }
+
+                ttCtx.textAlign = 'center';
+                ttCtx.textBaseline = 'middle';
+                ttCtx.font = '900 82px "Arial Black", Arial, sans-serif';
+                ttCtx.lineWidth = 16;
+                ttCtx.strokeStyle = '#ffffff';
+                ttCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+                ttCtx.shadowBlur = 8;
+                ttCtx.shadowOffsetX = 6;
+                ttCtx.shadowOffsetY = 6;
+
+                for (var i = 0; i < valsData.length; i++) {
+                    ttCtx.strokeText(valsData[i].text, valsData[i].tx, valsData[i].ty);
+                }
+
+                ttCtx.shadowColor = 'transparent';
+                ttCtx.shadowBlur = 0;
+                ttCtx.shadowOffsetX = 0;
+                ttCtx.shadowOffsetY = 0;
+
+                for (var i = 0; i < valsData.length; i++) {
+                    var v = valsData[i];
+                    if (isTemp) {
+                        if (v.val === minCityVal) ttCtx.fillStyle = '#0078D7';
+                        else if (v.val === maxCityVal) ttCtx.fillStyle = '#E81123';
+                        else ttCtx.fillStyle = '#000000';
+                    } else {
+                        ttCtx.fillStyle = '#ffffff';
+                    }
+                    ttCtx.fillText(v.text, v.tx, v.ty);
+                }
+            }
+
+            // 8. Habillage Broadcast (Titre, Logo, Légende)
+            if (includeBranding) {
+                ttCtx.save();
+                var pLabel = titleText || (manifest && manifest.layers && manifest.layers[layerKey] ? manifest.layers[layerKey].label : layerKey);
+                var pUnit = (window.getLayerPalette && window.getLayerPalette(layerKey) && window.getLayerPalette(layerKey).unit) || '';
+                var mTitle = modelText || (manifest && manifest.model_name ? manifest.model_name : 'GFS France 0.25°');
+                var rTag = runText ? (' • ' + runText) : '';
+                var dText = dateText || '';
+
+                var boxX = 24, boxY = 48, boxW = 700, boxH = 175;
+                ttCtx.fillStyle = 'rgba(7, 11, 20, 0.94)';
+                ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
+                ttCtx.lineWidth = 3;
+                ttCtx.beginPath();
+                if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(boxX, boxY, boxW, boxH, 16);
+                else ttCtx.rect(boxX, boxY, boxW, boxH);
+                ttCtx.fill();
+                ttCtx.stroke();
+
+                ttCtx.textAlign = 'left';
+                ttCtx.textBaseline = 'alphabetic';
+                ttCtx.fillStyle = '#ffffff';
+                ttCtx.font = '700 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                ttCtx.fillText(pLabel + (pUnit ? ' (' + pUnit + ')' : ''), boxX + 24, boxY + 48);
+
+                ttCtx.fillStyle = '#00d2ff';
+                ttCtx.font = '700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                ttCtx.fillText(mTitle + rTag, boxX + 24, boxY + 90);
+
+                ttCtx.fillStyle = '#ffffff';
+                ttCtx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                ttCtx.fillText(dText, boxX + 24, boxY + 142);
+
+                if (logoImage && logoImage.complete && logoImage.naturalWidth) {
+                    var logoW = 320;
+                    var logoH = Math.round(logoW * logoImage.naturalHeight / logoImage.naturalWidth);
+                    var logoX = 1080 - 24 - logoW;
+                    var logoY = boxY + (boxH - logoH) / 2;
+                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                    ttCtx.shadowBlur = 12;
+                    ttCtx.shadowOffsetX = 3;
+                    ttCtx.shadowOffsetY = 3;
+                    ttCtx.drawImage(logoImage, logoX, logoY, logoW, logoH);
+                }
+
+                if (typeof window.getLayerPalette === 'function' && typeof window.paletteTicks === 'function') {
+                    try {
+                        var legW = 960, legH = 100;
+                        var legX = (1080 - legW) / 2;
+                        var legY = 1580;
+
+                        ttCtx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+                        ttCtx.shadowBlur = 12;
+                        ttCtx.fillStyle = 'rgba(7, 11, 20, 0.95)';
+                        ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.7)';
+                        ttCtx.lineWidth = 2.5;
+                        ttCtx.beginPath();
+                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(legX, legY, legW, legH, 18);
+                        else ttCtx.rect(legX, legY, legW, legH);
+                        ttCtx.fill();
+                        ttCtx.stroke();
+
+                        ttCtx.shadowColor = 'transparent';
+                        ttCtx.shadowBlur = 0;
+                        ttCtx.fillStyle = '#ffffff';
+                        ttCtx.font = '700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                        ttCtx.textAlign = 'center';
+                        ttCtx.textBaseline = 'alphabetic';
+                        ttCtx.fillText(pLabel + (pUnit ? ' (' + pUnit + ')' : ''), legX + legW / 2, legY + 34);
+
+                        var pal = window.getLayerPalette(layerKey);
+                        var stops = pal && pal.stops ? pal.stops : [];
+                        var low = (pal && pal.transparent_below !== null && pal.transparent_below !== undefined) ? pal.transparent_below : (stops.length ? stops[0].value : 0);
+                        var max = stops.length ? stops[stops.length - 1].value : 1;
+                        var span = (max - low) || 1;
+                        var barX = legX + 30;
+                        var barW = legW - 60;
+                        var barY = legY + 48;
+
+                        var gradient = ttCtx.createLinearGradient(barX, 0, barX + barW, 0);
+                        stops.forEach(function (s) {
+                            var pos = Math.max(0, Math.min(1, (Number(s.value) - low) / span));
+                            gradient.addColorStop(pos, s.color);
+                        });
+                        ttCtx.fillStyle = gradient;
+                        ttCtx.beginPath();
+                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(barX, barY, barW, 20, 10);
+                        else ttCtx.rect(barX, barY, barW, 20);
+                        ttCtx.fill();
+                        ttCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                        ttCtx.lineWidth = 1.5;
+                        ttCtx.stroke();
+
+                        ttCtx.fillStyle = '#eaf1ff';
+                        ttCtx.font = '700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                        var ticks = window.paletteTicks(layerKey);
+                        ticks.forEach(function (tick, i) {
+                            var tx = barX + (ticks.length > 1 ? i / (ticks.length - 1) : 0.5) * barW;
+                            ttCtx.fillText(String(tick), tx, barY + 38);
+                        });
+                    } catch (eLeg) {}
+                }
+
+                ttCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                ttCtx.font = '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+                ttCtx.textAlign = 'center';
+                ttCtx.fillText('MÉTÉO FRANCE & CORSE • MÉTÉO-CLIMAT PRO', 540, 1860);
+                ttCtx.restore();
+            }
+
+            return ttCanvas;
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GESTION DU PACK TIKTOK QUOTIDIEN & SYNTHÈSE PÉRIODE
+        // ────────────────────────────────────────────────────────────────────
         function getTiktokSteps(layerKey) {
             var all = availableSteps();
             if (!all || !all.length) return [];
+            if (all.length <= 20) return all.slice(0, 16);
 
-            // Si toutes les étapes pour ce layer sont déjà espacées d'environ 24h
-            // (ex: temperature_max_24h, temperature_min_24h où il y a ~17 étapes au total : J0 à J16)
-            if (all.length <= 20) {
-                return all.slice(0, 16);
-            }
-
-            // Sinon (ex: pluie_cumul, temperature, vent avec pas de 3h ou 6h) :
-            // Regroupons les étapes par jour civil (valid_time ou lead_hour / 24)
             var daysMap = {};
             var dayKeys = [];
             all.forEach(function(s) {
                 var dateStr = (s.valid_time || '').slice(0, 10);
-                if (!dateStr) {
-                    dateStr = 'day_' + Math.floor(s.lead_hour / 24);
-                }
+                if (!dateStr) dateStr = 'day_' + Math.floor(s.lead_hour / 24);
                 if (!daysMap[dateStr]) {
                     daysMap[dateStr] = [];
                     dayKeys.push(dateStr);
@@ -2156,23 +3098,15 @@
             dayKeys.slice(0, 16).forEach(function(dKey) {
                 var daySteps = daysMap[dKey];
                 if (!daySteps || !daySteps.length) return;
-
                 var chosen = daySteps[0];
                 if (layerKey && (layerKey.indexOf('cumul') !== -1 || layerKey.indexOf('pluie_24h') !== -1 || layerKey.indexOf('neige_24h') !== -1)) {
-                    // Pour les cumuls de pluie sur 24h, prendre l'échéance terminale du jour
                     chosen = daySteps[daySteps.length - 1];
                 } else {
-                    // Pour les autres paramètres (températures instantanées, vent, rafales),
-                    // choisir l'heure la plus proche de 14h UTC
                     var bestDiff = 999;
                     daySteps.forEach(function(s) {
                         var h = 12;
-                        if (s.valid_time) {
-                            var d = new Date(s.valid_time);
-                            h = d.getUTCHours();
-                        } else {
-                            h = s.lead_hour % 24;
-                        }
+                        if (s.valid_time) h = new Date(s.valid_time).getUTCHours();
+                        else h = s.lead_hour % 24;
                         var diff = Math.abs(h - 14);
                         if (diff < bestDiff) {
                             bestDiff = diff;
@@ -2182,8 +3116,41 @@
                 }
                 selected.push(chosen);
             });
-
             return selected.length >= 5 ? selected.slice(0, 16) : all.slice(0, 16);
+        }
+
+        function getTiktokSelectedRange(totalSteps) {
+            var pSel = document.getElementById('tiktok-period-select');
+            var pVal = pSel ? pSel.value : '3j';
+            var startIdx = 0;
+            var endIdx = Math.min(2, totalSteps - 1);
+
+            if (pVal === '24h') {
+                endIdx = 0;
+            } else if (pVal === '3j') {
+                endIdx = Math.min(2, totalSteps - 1);
+            } else if (pVal === '5j') {
+                endIdx = Math.min(4, totalSteps - 1);
+            } else if (pVal === '7j') {
+                endIdx = Math.min(6, totalSteps - 1);
+            } else if (pVal === '10j') {
+                endIdx = Math.min(9, totalSteps - 1);
+            } else if (pVal === 'all') {
+                endIdx = totalSteps - 1;
+            } else if (pVal === 'custom') {
+                var sSel = document.getElementById('tiktok-start-day');
+                var eSel = document.getElementById('tiktok-end-day');
+                if (sSel && eSel) {
+                    startIdx = parseInt(sSel.value, 10) || 0;
+                    endIdx = parseInt(eSel.value, 10) || 0;
+                    if (endIdx < startIdx) endIdx = startIdx;
+                }
+            }
+            return {
+                start: clamp(startIdx, 0, totalSteps - 1),
+                end: clamp(endIdx, 0, totalSteps - 1),
+                count: Math.max(1, clamp(endIdx, 0, totalSteps - 1) - clamp(startIdx, 0, totalSteps - 1) + 1)
+            };
         }
 
         var isTiktokGenerating = false;
@@ -2194,11 +3161,14 @@
                 return;
             }
 
-            var steps = getTiktokSteps(currentLayer);
-            if (!steps || !steps.length) {
+            var allSteps = getTiktokSteps(currentLayer);
+            if (!allSteps || !allSteps.length) {
                 setToolHint('Aucune échéance disponible pour le pack TikTok.');
                 return;
             }
+
+            var range = getTiktokSelectedRange(allSteps.length);
+            var steps = allSteps.slice(range.start, range.end + 1);
 
             isTiktokGenerating = true;
             var origBtnHtml = captureTiktokButton ? captureTiktokButton.innerHTML : '';
@@ -2219,7 +3189,6 @@
 
             loadTiktokAssets().then(function(assets) {
                 if (!assets) {
-                    console.error('Erreur : Ressources cartographiques TikTok introuvables.');
                     alert('Erreur : les masques cartographiques TikTok sont momentanément inaccessibles.');
                     resetBtn();
                     return;
@@ -2227,6 +3196,12 @@
 
                 var zip = new window.JSZip();
                 var index = 0;
+                var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
+                var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'clean';
+                var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
+                var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
+                var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
 
                 function processNext() {
                     if (index >= steps.length) {
@@ -2234,8 +3209,8 @@
                             captureTiktokButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>ZIP…</span>';
                         }
                         var layerSlug = (manifest && manifest.layers && manifest.layers[currentLayer] ? manifest.layers[currentLayer].label : currentLayer)
-                            .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-                        var zipName = 'pack-tiktok-' + (layerSlug || 'meteo') + '-16j.zip';
+                            .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+                        var zipName = 'pack-tiktok-' + (layerSlug || 'meteo') + '-' + steps.length + 'j.zip';
                         zip.generateAsync({ type: 'blob' }).then(function(blob) {
                             var url = URL.createObjectURL(blob);
                             var link = document.createElement('a');
@@ -2246,7 +3221,7 @@
                             document.body.removeChild(link);
                             setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
                             resetBtn();
-                            setToolHint('Pack TikTok 16 cartes (J0 à J15) téléchargé avec succès !');
+                            setToolHint('Pack TikTok ' + steps.length + ' cartes (J+' + range.start + ' à J+' + range.end + ') téléchargé avec succès !');
                         }).catch(function(err) {
                             console.error('Erreur génération ZIP:', err);
                             resetBtn();
@@ -2270,709 +3245,39 @@
                     var img = new Image();
                     img.crossOrigin = 'anonymous';
                     img.onload = function() {
-                        // 1. Calque météo France métropolitaine (masquage strict par canal alpha, 0 mer, 0 étranger)
-                        var mCanvas = document.createElement('canvas');
-                        mCanvas.width = 2200;
-                        mCanvas.height = 1640;
-                        var mCtx = mCanvas.getContext('2d');
-                        mCtx.drawImage(img, 0, 0, 2200, 1640);
-                        mCtx.globalCompositeOperation = 'destination-in';
-                        mCtx.drawImage(assets.maskMainland, 0, 0, 2200, 1640);
-
-                        // 2. Calque météo Corse (masquage strict par canal alpha, 0 mer, tracé propre)
-                        var cCanvas = document.createElement('canvas');
-                        cCanvas.width = 2200;
-                        cCanvas.height = 1640;
-                        var cCtx = cCanvas.getContext('2d');
-                        cCtx.drawImage(img, 0, 0, 2200, 1640);
-                        cCtx.globalCompositeOperation = 'destination-in';
-                        cCtx.drawImage(assets.maskCorse, 0, 0, 2200, 1640);
-
-                        // 3. Canevas d'assemblage 2200 × 1640
-                        var composeCanvas = document.createElement('canvas');
-                        composeCanvas.width = 2200;
-                        composeCanvas.height = 1640;
-                        var compCtx = composeCanvas.getContext('2d');
-
-                        // Fond blanc sous la France et la Corse décalée pour éviter les zones transparentes si 0 mm de pluie / donnée sèche
-                        compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
-
-                        // Dessin du calque météo métropole
-                        compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
-
-                        // Dessin de la Corse décalée de -150px vers la gauche (dans la Méditerranée, sans rectangle artificiel)
-                        compCtx.drawImage(cCanvas, -150, 0, 2200, 1640);
-
-                        // Frontières départementales vectorielles nettes
-                        compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
-
-                        // 2bis. Incrustation des LIGNES TV épaisses (Habillage TV)
-                        var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
-                        var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'clean';
-                        var includeFronts = true; // Toujours le zonage TV dans les deux styles TikTok !
-                        var includeBranding = (tiktokStyle === 'broadcast');
-                        var frontsData = null;
-                        if (includeFronts) {
-                            frontsData = computeTvFrontsData(img, currentLayer, assets ? assets.maskMainland : null);
-                            if (frontsData && frontsData.lines && frontsData.lines.length) {
-                                var fCanvas = document.createElement('canvas');
-                                fCanvas.width = 2200;
-                                fCanvas.height = 1640;
-                                var fCtx = fCanvas.getContext('2d');
-
-                                fCtx.lineCap = 'round';
-                                fCtx.lineJoin = 'round';
-                                fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                                fCtx.shadowBlur = 14;
-                                fCtx.shadowOffsetX = 4;
-                                fCtx.shadowOffsetY = 4;
-                                fCtx.strokeStyle = '#ffffff';
-                                fCtx.lineWidth = 11; // Bien épaisse pour le format smartphone TikTok
-
-                                for (var li = 0; li < frontsData.lines.length; li++) {
-                                    var line = frontsData.lines[li];
-                                    if (line.length < 2) continue;
-                                    fCtx.beginPath();
-                                    fCtx.moveTo(line[0][0] * 2200, line[0][1] * 1640);
-                                    for (var pi = 1; pi < line.length; pi++) {
-                                        fCtx.lineTo(line[pi][0] * 2200, line[pi][1] * 1640);
-                                    }
-                                    fCtx.stroke();
-                                }
-
-                                // Métropole uniquement (la Corse reste propre sans balafre de front)
-                                var mfCanvas = document.createElement('canvas');
-                                mfCanvas.width = 2200;
-                                mfCanvas.height = 1640;
-                                var mfCtx = mfCanvas.getContext('2d');
-                                mfCtx.drawImage(fCanvas, 0, 0);
-                                mfCtx.globalCompositeOperation = 'destination-in';
-                                mfCtx.drawImage(assets.maskMainland, 0, 0);
-                                compCtx.drawImage(mfCanvas, 0, 0);
-                            }
-                        }
-
-                        // 3. Cadrage et centrage sur canevas TikTok 1080 × 1920 vertical
-                        var ttCanvas = document.createElement('canvas');
-                        ttCanvas.width = 1080;
-                        ttCanvas.height = 1920;
-                        var ttCtx = ttCanvas.getContext('2d');
-                        // Fond 100% transparent natif pour incrustation vidéo / broadcast
-                        ttCtx.clearRect(0, 0, 1080, 1920);
-
-                        var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
-                        var targetW = 1040;
-                        var targetH = Math.round(targetW * (cropH / cropW));
-                        var targetX = Math.round((1080 - targetW) / 2);
-                        var targetY = Math.round((1920 - targetH) / 2);
-
-                        ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
-
-                        // 4. Cartouches TV broadcast automatiques vectoriels en direct sur ttCanvas
-                        // ponytail: tracé direct en 1080p pour une netteté maximale et anti-collision stricte (0 superposition)
-                        var ttOccupied = [];
-                        if (includeBranding) {
-                            ttOccupied.push({ left: 0, right: 1080, top: 0, bottom: 250 });
-                            ttOccupied.push({ left: 0, right: 1080, top: 1560, bottom: 1920 });
-                        }
-
-                        if (includeFronts && frontsData && frontsData.badges && frontsData.badges.length) {
-                            var allBadgesToDraw = frontsData.badges.slice();
-
-                            // Ajout cartouche Corse propre si disponible (coordonnées Corse décalée)
-                            if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
-                                try {
-                                    var corseSampler = cCanvas.getContext('2d');
-                                    var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
-                                    if (cPix[3] > 20) {
-                                        var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
-                                        if (cVal !== null && Number.isFinite(cVal)) {
-                                            var cLabel = '';
-                                            if (currentLayer.indexOf('temperature') !== -1) {
-                                                var c0 = Math.floor(cVal / 2) * 2;
-                                                var c1 = c0 + 2;
-                                                cLabel = c0 + ' à ' + c1 + ' °C';
-                                            } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
-                                                cLabel = Math.round(cVal) + ' mm';
-                                            } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
-                                                cLabel = Math.round(cVal) + ' km/h';
-                                            } else {
-                                                var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
-                                                cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
-                                            }
-                                            allBadgesToDraw.push({
-                                                u: 1710 / 2200,
-                                                v: 1310 / 1640,
-                                                label: cLabel,
-                                                isCorse: true
-                                            });
-                                        }
-                                    }
-                                } catch(eCorse) {}
-                            }
-
-                            // Priorité absolue : 1. Hotspot maximal national (Nîmes / PACA), 2. Corse, 3. Coldspot, 4. Reste
-                            allBadgesToDraw.sort(function(a, b) {
-                                if (a.isHotspot && !b.isHotspot) return -1;
-                                if (!a.isHotspot && b.isHotspot) return 1;
-                                if (a.isCorse && !b.isCorse) return -1;
-                                if (!a.isCorse && b.isCorse) return 1;
-                                if (a.isColdspot && !b.isColdspot) return -1;
-                                if (!a.isColdspot && b.isColdspot) return 1;
-                                return (b.clearance || 0) - (a.clearance || 0);
-                            });
-
-                            var bFontSize = 50;
-                            ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-
-                            for (var bi = 0; bi < allBadgesToDraw.length; bi++) {
-                                var badge = allBadgesToDraw[bi];
-                                var cx = badge.u * 2200;
-                                var cy = badge.v * 1640;
-                                // Décalages demandés : Bretagne vers la droite et Corse vers la gauche pour ne pas mordre sur les bords
-                                if (badge.isCorse) cx -= 255;
-                                if (badge.isBretagne) cx += 60;
-                                var bx = targetX + (cx - cropX) * (targetW / cropW);
-                                var by = targetY + (cy - cropY) * (targetH / cropH);
-
-                                if (bx < 60 || bx > 1020 || by < targetY + 25 || by > targetY + targetH - 25) continue;
-
-                                if (badge.isSynoptic) {
-                                    // ponytail: dimensions ajustées équilibrées agrandies pour lisibilité optimale sur TikTok
-                                    var radius = 72;
-                                    var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
-
-                                    var ptwEst = 145;
-                                    var estPbw = ptwEst + 40;
-                                    var estPbh = 62;
-                                    var estPby = by + radius + 34;
-
-                                    var bRect = {
-                                        left: bx - Math.max(radius, estPbw / 2) - 14,
-                                        right: bx + Math.max(radius, estPbw / 2) + 14,
-                                        top: by - radius - 14,
-                                        bottom: estPby + estPbh / 2 + 14
-                                    };
-                                    var clash = false;
-                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
-                                        var occ = ttOccupied[oi];
-                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
-                                            clash = true;
-                                            break;
-                                        }
-                                    }
-                                    if (clash) continue;
-                                    ttOccupied.push(bRect);
-
-                                    ttCtx.save();
-                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.88)';
-                                    ttCtx.shadowBlur = 18;
-                                    ttCtx.shadowOffsetX = 5;
-                                    ttCtx.shadowOffsetY = 5;
-
-                                    ttCtx.fillStyle = discColor;
-                                    ttCtx.strokeStyle = '#ffffff';
-                                    ttCtx.lineWidth = 7.0;
-                                    ttCtx.beginPath();
-                                    ttCtx.arc(bx, by, radius, 0, Math.PI * 2);
-                                    ttCtx.fill();
-                                    ttCtx.stroke();
-
-                                    ttCtx.shadowColor = 'transparent';
-                                    ttCtx.shadowBlur = 0;
-                                    ttCtx.shadowOffsetX = 0;
-                                    ttCtx.shadowOffsetY = 0;
-                                    ttCtx.fillStyle = '#ffffff';
-                                    ttCtx.font = '900 86px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                    ttCtx.textAlign = 'center';
-                                    ttCtx.textBaseline = 'middle';
-                                    ttCtx.fillText(badge.actionType, bx, by + 1.5);
-
-                                    if (badge.pressureText) {
-                                        ttCtx.font = '900 48px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                        var ptw = ttCtx.measureText(badge.pressureText).width;
-                                        var pbw = ptw + 40;
-                                        var pbh = 62;
-                                        var pby = by + radius + 34;
-
-                                        ttCtx.shadowColor = 'rgba(0, 0, 0, 0.82)';
-                                        ttCtx.shadowBlur = 14;
-                                        ttCtx.shadowOffsetX = 4;
-                                        ttCtx.shadowOffsetY = 4;
-
-                                        ttCtx.fillStyle = 'rgba(10, 14, 24, 0.96)';
-                                        ttCtx.strokeStyle = '#ffffff';
-                                        ttCtx.lineWidth = 4.0;
-
-                                        ttCtx.beginPath();
-                                        if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(bx - pbw / 2, pby - pbh / 2, pbw, pbh, 16);
-                                        else ttCtx.rect(bx - pbw / 2, pby - pbh / 2, pbw, pbh);
-                                        ttCtx.fill();
-                                        ttCtx.stroke();
-
-                                        ttCtx.shadowColor = 'transparent';
-                                        ttCtx.shadowBlur = 0;
-                                        ttCtx.fillStyle = '#ffffff';
-                                        ttCtx.fillText(badge.pressureText, bx, pby + 3.5);
-                                    }
-                                    ttCtx.restore();
-                                } else {
-                                    var text = badge.label;
-                                    ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-                                    var tw = ttCtx.measureText(text).width;
-                                    var padX = 26;
-                                    var padY = 14;
-                                    var bw = Math.max(220, tw + padX * 2);
-                                    var bh = bFontSize + padY * 2;
-                                    var rad = 18;
-
-                                    var bRect = {
-                                        left: bx - bw / 2 - 10,
-                                        right: bx + bw / 2 + 10,
-                                        top: by - bh / 2 - 10,
-                                        bottom: by + bh / 2 + 10
-                                    };
-
-                                    var clash = false;
-                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
-                                        var occ = ttOccupied[oi];
-                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
-                                            clash = true;
-                                            break;
-                                        }
-                                    }
-                                    if (clash) continue;
-                                    ttOccupied.push(bRect);
-
-                                    ttCtx.save();
-                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                                    ttCtx.shadowBlur = 14;
-                                    ttCtx.shadowOffsetX = 4.5;
-                                    ttCtx.shadowOffsetY = 4.5;
-
-                                    ttCtx.fillStyle = 'rgba(18, 22, 32, 0.95)';
-                                    ttCtx.strokeStyle = '#ffffff';
-                                    ttCtx.lineWidth = 3.5;
-
-                                    ttCtx.beginPath();
-                                    if (typeof ttCtx.roundRect === 'function') {
-                                        ttCtx.roundRect(bx - bw / 2, by - bh / 2, bw, bh, rad);
-                                    } else {
-                                        ttCtx.rect(bx - bw / 2, by - bh / 2, bw, bh);
-                                    }
-                                    ttCtx.fill();
-                                    ttCtx.stroke();
-
-                                    ttCtx.shadowColor = 'transparent';
-                                    ttCtx.shadowBlur = 0;
-                                    ttCtx.shadowOffsetX = 0;
-                                    ttCtx.shadowOffsetY = 0;
-                                    ttCtx.fillStyle = '#ffffff';
-                                    ttCtx.textAlign = 'center';
-                                    ttCtx.textBaseline = 'middle';
-                                    // Centrage optique parfait (+4px pour compenser la hauteur de cap des chiffres sans jambages descendants)
-                                    ttCtx.fillText(text, bx, by + 4);
-                                    ttCtx.restore();
-                                }
-                            }
-                        }
-
-                        // 5. Incrustation des valeurs numériques façon TV (disponible seule ou avec les lignes TV)
-                        var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
-                        if (includeValues && places && places.length && window.getLayerPalette) {
-                            var samplerCtx = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
-                            samplerCtx.canvas.width = img.width;
-                            samplerCtx.canvas.height = img.height;
-                            samplerCtx.drawImage(img, 0, 0);
-                            var imgData = samplerCtx.getImageData(0, 0, img.width, img.height).data;
-                            var layerPal = window.getLayerPalette(currentLayer);
-                            
-                            var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
-                            var isTemp = currentLayer.indexOf('temperature') !== -1;
-                            var valsData = [];
-
-                            if (layoutMode === 'bureau') {
-                                // 🎯 35 villes météo officielles réparties uniformément sur la France et la Corse
-                                var bureauCities = [
-                                    ["Paris", 48.85, 2.35],
-                                    ["Brest", 48.39, -4.48],
-                                    ["Rennes", 48.11, -1.67],
-                                    ["Cherbourg", 49.63, -1.62],
-                                    ["Rouen", 49.44, 1.10],
-                                    ["Lille", 50.62, 3.05],
-                                    ["Boulogne-sur-Mer", 50.726, 1.614],
-                                    ["Reims", 49.25, 4.03],
-                                    ["Metz", 49.11, 6.17],
-                                    ["Nantes", 47.21, -1.55],
-                                    ["Tours", 47.39, 0.68],
-                                    ["Auxerre", 47.79, 3.57],
-                                    ["Chaumont", 48.11, 5.14],
-                                    ["Strasbourg", 48.57, 7.75],
-                                    ["Bourges", 47.08, 2.39],
-                                    ["Belfort", 47.63, 6.86],
-                                    ["Limoges", 45.83, 1.26],
-                                    ["Vichy", 46.12, 3.42],
-                                    ["Lyon", 45.76, 4.83],
-                                    ["Pontarlier", 46.90, 6.35],
-                                    ["La Rochelle", 46.16, -1.15],
-                                    ["Bordeaux", 44.83, -0.57],
-                                    ["Biarritz", 43.48, -1.56],
-                                    ["Tarbes", 43.23, 0.07],
-                                    ["Toulouse", 43.60, 1.44],
-                                    ["Aurillac", 44.92, 2.44],
-                                    ["Montélimar", 44.55, 4.75],
-                                    ["Gap", 44.55, 6.07],
-                                    ["Perpignan", 42.69, 2.89],
-                                    ["Montpellier", 43.61, 3.87],
-                                    ["Marseille", 43.296, 5.381],
-                                    ["Amiens", 49.894, 2.295],
-                                    ["Nice", 43.71, 7.26],
-                                    ["Ajaccio", 41.92, 8.73],
-                                    ["Bastia", 42.69, 9.45],
-                                    ["Alençon", 48.43, 0.09],
-                                    ["Bourg-St-Maurice", 45.62, 6.77],
-                                    ["Chalon/Saône", 46.78, 4.85],
-                                    ["Agen", 44.20, 0.61]
-                                ];
-
-                                for (var bpi = 0; bpi < bureauCities.length; bpi++) {
-                                    var c = bureauCities[bpi];
-                                    var coords = projectCoords(c[1], c[2]);
-                                    var u = coords.u, v = coords.v;
-                                    if (u < 0 || u > 1 || v < 0 || v > 1) continue;
-
-                                    var px = Math.round(u * (img.width - 1));
-                                    var py = Math.round(v * (img.height - 1));
-                                    var idx = (py * img.width + px) * 4;
-                                    var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
-                                    var val = null;
-                                    if (a > 12) val = valueFromColour(r, g, b, layerPal);
-                                    if (val === null || !Number.isFinite(val)) continue;
-                                    if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
-                                        if (val < 0.2) continue;
-                                    } else if (currentLayer.indexOf('mucape') !== -1) {
-                                        if (val < 40) continue;
-                                    } else if (currentLayer.indexOf('graupel') !== -1) {
-                                        if (val < 0.1) continue;
-                                    }
-
-                                    var cx = u * 2200;
-                                    var cy = v * 1640;
-                                    var isCorse = (c[2] > 8.4 && c[1] < 43.1);
-                                    if (isCorse) cx -= 150;
-
-                                    var tx = targetX + (cx - cropX) * (targetW / cropW);
-                                    var ty = targetY + (cy - cropY) * (targetH / cropH);
-
-                                    // Protection anti-collision avec les cartouches TV déjà placés
-                                    var bRect = { left: tx - 50, right: tx + 50, top: ty - 34, bottom: ty + 34 };
-                                    var clash = false;
-                                    for (var oi = 0; oi < ttOccupied.length; oi++) {
-                                        var occ = ttOccupied[oi];
-                                        if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
-                                            clash = true;
-                                            break;
-                                        }
-                                    }
-                                    if (clash) continue;
-                                    ttOccupied.push(bRect);
-                                    valsData.push({ text: String(Math.round(val)), val: Math.round(val), tx: tx, ty: ty });
-                                }
-                            } else {
-                                // 🏙️ Mode 'villes' (33 grandes villes prioritaires avec anti-collision)
-                                var tvCities = [
-                                    "Paris", "Lille", "Brest", "Strasbourg", "Lyon", "Bordeaux",
-                                    "Marseille", "Nice", "Toulouse", "Nantes", "Rennes", "Clermont-Ferrand",
-                                    "Dijon", "Montpellier", "Perpignan", "Biarritz", "Limoges", "Tours",
-                                    "Reims", "Ajaccio", "Cherbourg-en-Cotentin", "Caen", "Amiens",
-                                    "Bourges", "Poitiers", "La Rochelle", "Aurillac", "Metz", "Bastia",
-                                    "Rouen", "Besançon", "Pau", "Grenoble"
-                                ];
-                                
-                                var targetPlaces = [];
-                                for (var tvi = 0; tvi < tvCities.length; tvi++) {
-                                    var cName = tvCities[tvi];
-                                    for (var pi = 0; pi < places.length; pi++) {
-                                        if (places[pi][0] === cName) {
-                                            targetPlaces.push(places[pi]);
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                var placedBoxes = [];
-                                var shifts = [
-                                    { dx: 0, dy: 0 },
-                                    { dx: 0, dy: -22 }, { dx: 0, dy: 22 }, { dx: -24, dy: 0 }, { dx: 24, dy: 0 },
-                                    { dx: -22, dy: -22 }, { dx: 22, dy: -22 }, { dx: -22, dy: 22 }, { dx: 22, dy: 22 }
-                                ];
-                                
-                                for (var pi = 0; pi < targetPlaces.length; pi++) {
-                                    var place = targetPlaces[pi];
-                                    var coords = projectCoords(Number(place[2]), Number(place[3]));
-                                    var u = coords.u, v = coords.v;
-                                    if (u < 0 || u > 1 || v < 0 || v > 1) continue;
-                                    
-                                    var px = Math.round(u * (img.width - 1));
-                                    var py = Math.round(v * (img.height - 1));
-                                    var idx = (py * img.width + px) * 4;
-                                    var r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
-                                    
-                                    var val = null;
-                                    if (a > 12) val = valueFromColour(r, g, b, layerPal);
-                                    if (val === null || !Number.isFinite(val)) continue;
-                                    
-                                    var cx = u * 2200;
-                                    var cy = v * 1640;
-                                    var isCorse = Number(place[3]) > 8.4 && Number(place[2]) < 43.1;
-                                    if (isCorse) cx -= 150;
-                                    
-                                    var strVal = String(Math.round(val));
-                                    if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('neige') !== -1) {
-                                        if (val < 0.2) continue;
-                                    } else if (currentLayer.indexOf('mucape') !== -1) {
-                                        if (val < 40) continue;
-                                    } else if (currentLayer.indexOf('graupel') !== -1) {
-                                        if (val < 0.1) continue;
-                                    }
-                                    
-                                    var tx = targetX + (cx - cropX) * (targetW / cropW);
-                                    var ty = targetY + (cy - cropY) * (targetH / cropH);
-                                    var bWidth = (strVal.length > 2 ? 104 : 88);
-                                    var bHeight = 74;
-                                    
-                                    var bestPos = null;
-                                    for (var si = 0; si < shifts.length; si++) {
-                                        var nx = tx + shifts[si].dx;
-                                        var ny = ty + shifts[si].dy;
-                                        var rect = { x1: nx - bWidth/2, y1: ny - bHeight/2, x2: nx + bWidth/2, y2: ny + bHeight/2 };
-                                        
-                                        var collides = false;
-                                        for (var oi = 0; oi < ttOccupied.length; oi++) {
-                                            var occ = ttOccupied[oi];
-                                            if (rect.x1 < occ.right && rect.x2 > occ.left && rect.y1 < occ.bottom && rect.y2 > occ.top) {
-                                                collides = true;
-                                                break;
-                                            }
-                                        }
-                                        if (!collides) {
-                                            for (var bi = 0; bi < placedBoxes.length; bi++) {
-                                                var b = placedBoxes[bi];
-                                                if (rect.x1 < b.x2 + 8 && rect.x2 > b.x1 - 8 && rect.y1 < b.y2 + 8 && rect.y2 > b.y1 - 8) {
-                                                    collides = true;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                        if (!collides) {
-                                            bestPos = { x: nx, y: ny, rect: rect };
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (!bestPos) continue;
-                                    
-                                    placedBoxes.push(bestPos.rect);
-                                    valsData.push({ text: strVal, val: Math.round(val), tx: bestPos.x, ty: bestPos.y });
-                                }
-                            }
-
-                            
-                            var minVal = Infinity, maxVal = -Infinity;
-                            if (isTemp && valsData.length > 0) {
-                                for (var i = 0; i < valsData.length; i++) {
-                                    if (valsData[i].val < minVal) minVal = valsData[i].val;
-                                    if (valsData[i].val > maxVal) maxVal = valsData[i].val;
-                                }
-                            }
-                            
-                            // 🎯 Rendu direct et haute définition sur ttCanvas (1080 × 1920)
-                            // Agrandi pour une lisibilité parfaite sur TikTok / smartphone
-                            ttCtx.textAlign = 'center';
-                            ttCtx.textBaseline = 'middle';
-                            ttCtx.font = '900 82px "Arial Black", Arial, sans-serif';
-                            ttCtx.lineWidth = 16;
-                            ttCtx.strokeStyle = '#ffffff';
-                            
-                            // Passe 1 : Contours blancs + ombre portée noire
-                            ttCtx.shadowColor = 'rgba(0, 0, 0, 0.75)';
-                            ttCtx.shadowBlur = 8;
-                            ttCtx.shadowOffsetX = 6;
-                            ttCtx.shadowOffsetY = 6;
-                            
-                            for (var i = 0; i < valsData.length; i++) {
-                                ttCtx.strokeText(valsData[i].text, valsData[i].tx, valsData[i].ty);
-                            }
-                            
-                            // Passe 2 : Remplissage net (sans ombre)
-                            ttCtx.shadowColor = 'transparent';
-                            ttCtx.shadowBlur = 0;
-                            ttCtx.shadowOffsetX = 0;
-                            ttCtx.shadowOffsetY = 0;
-                            
-                            for (var i = 0; i < valsData.length; i++) {
-                                var v = valsData[i];
-                                if (isTemp) {
-                                    if (v.val === minVal) ttCtx.fillStyle = '#0078D7'; // Bleu = Tn
-                                    else if (v.val === maxVal) ttCtx.fillStyle = '#E81123'; // Rouge = Tx
-                                    else ttCtx.fillStyle = '#000000';
-                                } else {
-                                    ttCtx.fillStyle = '#ffffff'; // Blanc pour les autres couches
-                                }
-                                ttCtx.fillText(v.text, v.tx, v.ty);
-                            }
-                        }
-
-                        // 6. Optionnelle : Incrustation de l'Habillage Broadcast complet (Titre, Logo, Légende)
-                        // si l'utilisateur a choisi le style "Complet Broadcast"
-                        if (includeBranding) {
-                            ttCtx.save();
-
-                            // A. Cartouche Titre en haut à gauche
-                            var layer = manifest && manifest.layers && manifest.layers[currentLayer];
-                            var prettyLabel = layer ? layer.label : '';
-                            var prettyUnit = layer && layer.unit ? layer.unit : '';
-                            if (typeof window.getLayerPalette === 'function') {
-                                try {
-                                    var prettyPal = window.getLayerPalette(currentLayer);
-                                    if (prettyPal) {
-                                        prettyLabel = prettyPal.label || prettyLabel;
-                                        prettyUnit = prettyPal.unit !== undefined ? prettyPal.unit : prettyUnit;
-                                    }
-                                } catch (e) {}
-                            }
-
-                            var fullDateText = '';
-                            if (step && step.valid_time) {
-                                try {
-                                    fullDateText = validityFormat.format(new Date(step.valid_time)).replace(':', 'h');
-                                } catch (e) {
-                                    fullDateText = new Date(step.valid_time).toLocaleDateString('fr-FR');
-                                }
-                            }
-                            var leadTag = 'J+' + index;
-                            var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
-                            var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
-
-                            var boxX = 24, boxY = 48, boxW = 680, boxH = 175;
-                            ttCtx.fillStyle = 'rgba(7, 11, 20, 0.94)';
-                            ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
-                            ttCtx.lineWidth = 3;
-                            ttCtx.beginPath();
-                            if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(boxX, boxY, boxW, boxH, 16);
-                            else ttCtx.rect(boxX, boxY, boxW, boxH);
-                            ttCtx.fill();
-                            ttCtx.stroke();
-
-                            ttCtx.textAlign = 'left';
-                            ttCtx.textBaseline = 'alphabetic';
-                            ttCtx.fillStyle = '#ffffff';
-                            ttCtx.font = '700 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                            ttCtx.fillText(prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''), boxX + 24, boxY + 48);
-
-                            ttCtx.fillStyle = '#00d2ff';
-                            ttCtx.font = '700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                            ttCtx.fillText(modelTitle + (runLabel ? ' • ' + runLabel : ''), boxX + 24, boxY + 90);
-
-                            ttCtx.fillStyle = '#ffffff';
-                            ttCtx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                            ttCtx.fillText(fullDateText + ' (' + leadTag + ')', boxX + 24, boxY + 142);
-
-                            // B. Logo Météo-Climat Pro / Monsieur Météo en haut à droite
-                            if (logoImage && logoImage.complete && logoImage.naturalWidth) {
-                                var logoW = 320;
-                                var logoH = Math.round(logoW * logoImage.naturalHeight / logoImage.naturalWidth);
-                                var logoX = 1080 - 24 - logoW;
-                                var logoY = boxY + (boxH - logoH) / 2;
-                                ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                                ttCtx.shadowBlur = 12;
-                                ttCtx.shadowOffsetX = 3;
-                                ttCtx.shadowOffsetY = 3;
-                                ttCtx.drawImage(logoImage, logoX, logoY, logoW, logoH);
-                            }
-
-                            // C. Légende colorimétrique officielle en bas
-                            var z500Embed = (currentLayer === 'geopotentiel_500' || currentLayer === 'geopotentiel_500_meteociel');
-                            if (layer && !z500Embed && typeof window.getLayerPalette === 'function' && typeof window.paletteTicks === 'function') {
-                                try {
-                                    var legW = 960;
-                                    var legH = 100;
-                                    var legX = (1080 - legW) / 2;
-                                    var legY = 1580;
-
-                                    ttCtx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-                                    ttCtx.shadowBlur = 12;
-                                    ttCtx.fillStyle = 'rgba(7, 11, 20, 0.95)';
-                                    ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.7)';
-                                    ttCtx.lineWidth = 2.5;
-                                    ttCtx.beginPath();
-                                    if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(legX, legY, legW, legH, 18);
-                                    else ttCtx.rect(legX, legY, legW, legH);
-                                    ttCtx.fill();
-                                    ttCtx.stroke();
-
-                                    ttCtx.shadowColor = 'transparent';
-                                    ttCtx.shadowBlur = 0;
-                                    ttCtx.fillStyle = '#ffffff';
-                                    ttCtx.font = '700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                                    ttCtx.textAlign = 'center';
-                                    ttCtx.textBaseline = 'alphabetic';
-                                    ttCtx.fillText(prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''), legX + legW / 2, legY + 34);
-
-                                    var pal = window.getLayerPalette(currentLayer);
-                                    var stops = pal && pal.stops ? pal.stops : [];
-                                    var low = (pal && pal.transparent_below !== null && pal.transparent_below !== undefined) ? pal.transparent_below : (stops.length ? stops[0].value : 0);
-                                    var max = stops.length ? stops[stops.length - 1].value : 1;
-                                    var span = (max - low) || 1;
-                                    var barX = legX + 30;
-                                    var barW = legW - 60;
-                                    var barY = legY + 48;
-
-                                    var gradient = ttCtx.createLinearGradient(barX, 0, barX + barW, 0);
-                                    stops.forEach(function (s) {
-                                        var pos = Math.max(0, Math.min(1, (Number(s.value) - low) / span));
-                                        gradient.addColorStop(pos, s.color);
-                                    });
-                                    ttCtx.fillStyle = gradient;
-                                    ttCtx.beginPath();
-                                    if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(barX, barY, barW, 20, 10);
-                                    else ttCtx.rect(barX, barY, barW, 20);
-                                    ttCtx.fill();
-                                    ttCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
-                                    ttCtx.lineWidth = 1.5;
-                                    ttCtx.stroke();
-
-                                    ttCtx.fillStyle = '#eaf1ff';
-                                    ttCtx.font = '700 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                                    var ticks = window.paletteTicks(currentLayer);
-                                    ticks.forEach(function (tick, i) {
-                                        var tx = barX + (ticks.length > 1 ? i / (ticks.length - 1) : 0.5) * barW;
-                                        ttCtx.fillText(String(tick), tx, barY + 38);
-                                    });
-                                } catch (eLeg) {}
-                            }
-
-                            // D. Signature bas
-                            ttCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-                            ttCtx.font = '800 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                            ttCtx.textAlign = 'center';
-                            ttCtx.fillText('MÉTÉO FRANCE & CORSE • MÉTÉO-CLIMAT PRO', 540, 1860);
-
-                            ttCtx.restore();
-                        }
-
-                        var dateStr = '';
+                        var fullDateText = '';
                         if (step.valid_time) {
-                            dateStr = step.valid_time.slice(0, 10);
+                            try {
+                                fullDateText = validityFormat.format(new Date(step.valid_time)).replace(':', 'h');
+                            } catch (e) {
+                                fullDateText = new Date(step.valid_time).toLocaleDateString('fr-FR');
+                            }
                         }
+                        var currentLeadTag = 'J+' + (range.start + index);
+                        var layer = manifest && manifest.layers && manifest.layers[currentLayer];
+                        var prettyLabel = layer ? layer.label : currentLayer;
+
+                        var ttCanvas = renderTiktokCardToCanvas({
+                            img: img,
+                            probe: null,
+                            layerKey: currentLayer,
+                            titleText: prettyLabel,
+                            modelText: modelTitle,
+                            runText: runLabel,
+                            dateText: fullDateText + ' (' + currentLeadTag + ')',
+                            leadTag: currentLeadTag,
+                            assets: assets,
+                            tiktokStyle: tiktokStyle,
+                            includeValues: includeValues,
+                            layoutMode: layoutMode
+                        });
+
+                        var dateStr = (step.valid_time || '').slice(0, 10);
                         var numPrefix = (index + 1 < 10 ? '0' + (index + 1) : '' + (index + 1));
-                        var leadTag = 'J+' + index;
-                        var fileName = numPrefix + '_carte-meteo-' + (currentLayer || 'param') + '-' + leadTag + (dateStr ? '_' + dateStr : '') + '.png';
+                        var fileName = numPrefix + '_carte-meteo-' + (currentLayer || 'param') + '-' + currentLeadTag + (dateStr ? '_' + dateStr : '') + '.png';
 
                         ttCanvas.toBlob(function(blob) {
-                            if (blob) {
-                                zip.file(fileName, blob);
-                            }
+                            if (blob) zip.file(fileName, blob);
                             index += 1;
                             processNext();
                         }, 'image/png');
@@ -2986,6 +3291,290 @@
                 }
 
                 processNext();
+            });
+        }
+
+        var isTiktokSummaryGenerating = false;
+        function downloadTiktokSummaryCard() {
+            if (isTiktokSummaryGenerating) return;
+            var btn = document.getElementById('btn-tiktok-summary') || app.querySelector('[data-amfm-capture-tiktok-summary]');
+            var origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Synthèse 1080p…</span>';
+            }
+
+            isTiktokSummaryGenerating = true;
+            function resetSummaryBtn() {
+                isTiktokSummaryGenerating = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
+
+            var paramKey = 'temperature_max_periode';
+            if (isPeriodMode) {
+                paramKey = periodParam;
+            } else if (currentLayer.indexOf('temperature_min') !== -1) {
+                paramKey = 'temperature_min_periode';
+            } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
+                paramKey = 'pluie_periode';
+            } else if (currentLayer.indexOf('rafale') !== -1 || currentLayer.indexOf('vent') !== -1) {
+                paramKey = 'rafales_max_periode';
+            } else if (currentLayer.indexOf('temperature') !== -1) {
+                paramKey = 'temperature_max_periode';
+            }
+
+            var dailySteps = getDailyStepsForParam(paramKey);
+            if (!dailySteps || !dailySteps.length) {
+                setToolHint('Aucune donnée quotidienne disponible pour ce paramètre.');
+                resetSummaryBtn();
+                return;
+            }
+
+            var range = getTiktokSelectedRange(dailySteps.length);
+
+            loadTiktokAssets().then(function(assets) {
+                if (!assets) {
+                    alert('Erreur : les masques cartographiques TikTok sont momentanément inaccessibles.');
+                    resetSummaryBtn();
+                    return;
+                }
+
+                computePeriodComposite(paramKey, range.start, range.end).then(function(compRes) {
+                    var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
+                    var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'broadcast';
+                    var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                    var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
+
+                    var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
+                    var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
+
+                    var ttCanvas = renderTiktokCardToCanvas({
+                        img: compRes.canvas,
+                        probe: compRes.probe,
+                        layerKey: compRes.sourceLayer,
+                        titleText: compRes.label,
+                        modelText: modelTitle,
+                        runText: runLabel,
+                        dateText: 'SYNTHÈSE ' + compRes.numDays + ' JOURS • DU ' + compRes.dateStartStr + ' AU ' + compRes.dateEndStr,
+                        leadTag: 'J+' + range.start + (range.end > range.start ? (' à J+' + range.end) : ''),
+                        assets: assets,
+                        tiktokStyle: tiktokStyle,
+                        includeValues: includeValues,
+                        layoutMode: layoutMode
+                    });
+
+                    var cleanParam = paramKey.replace('_periode', '').replace(/_/g, '-');
+                    var dStartClean = (compRes.targetSteps[0].valid_time || '').slice(0, 10);
+                    var fileName = 'synthese-tiktok-' + cleanParam + '-' + compRes.numDays + 'j_' + dStartClean + '.png';
+
+                    ttCanvas.toBlob(function(blob) {
+                        if (!blob) {
+                            resetSummaryBtn();
+                            return;
+                        }
+                        var url = URL.createObjectURL(blob);
+                        var link = document.createElement('a');
+                        link.href = url;
+                        link.download = fileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+                        resetSummaryBtn();
+                        setToolHint('Carte Synthèse TikTok (' + compRes.numDays + ' jours) téléchargée avec succès !');
+                    }, 'image/png');
+                }).catch(function(err) {
+                    console.error('Erreur calcul synthèse TikTok:', err);
+                    alert('Erreur lors du calcul de la synthèse : ' + (err.message || err));
+                    resetSummaryBtn();
+                });
+            });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // ÉTAT & CONTRÔLEUR DU MODE PÉRIODE (BANDEAU SUPÉRIEUR CARTE)
+        // ────────────────────────────────────────────────────────────────────
+        var isPeriodMode = false;
+        var periodParam = 'temperature_max_periode';
+        var periodStartDay = 0;
+        var periodEndDay = 2;
+        var periodCompositeCanvas = null;
+        var periodCompositeProbe = null;
+        var isPeriodComputing = false;
+
+        function populatePeriodDaySelects() {
+            var dailySteps = getDailyStepsForParam(periodParam);
+            var startSel = document.getElementById('amfm-period-start');
+            var endSel = document.getElementById('amfm-period-end');
+            var ttStartSel = document.getElementById('tiktok-start-day');
+            var ttEndSel = document.getElementById('tiktok-end-day');
+            if (!dailySteps || !dailySteps.length) return;
+
+            var html = '';
+            for (var i = 0; i < dailySteps.length; i++) {
+                var s = dailySteps[i];
+                var d = new Date(s.valid_time);
+                var dayOffset = Math.floor(s.lead_hour / 24);
+                var leadTag = (dayOffset === 0) ? "J+0" : ("J+" + dayOffset);
+                var dateStr = '';
+                try {
+                    dateStr = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(d);
+                } catch(e) {
+                    dateStr = (s.valid_time || '').slice(0, 10);
+                }
+                var optText = dateStr + ' (' + leadTag + ')';
+                html += '<option value="' + i + '">' + optText + '</option>';
+            }
+
+            if (startSel) {
+                var prevS = startSel.value;
+                startSel.innerHTML = html;
+                if (prevS && parseInt(prevS, 10) < dailySteps.length) startSel.value = prevS;
+                else startSel.value = '0';
+            }
+            if (endSel) {
+                var prevE = endSel.value;
+                endSel.innerHTML = html;
+                if (prevE && parseInt(prevE, 10) < dailySteps.length) endSel.value = prevE;
+                else endSel.value = String(Math.min(2, dailySteps.length - 1));
+            }
+            if (ttStartSel) {
+                ttStartSel.innerHTML = html;
+                ttStartSel.value = '0';
+            }
+            if (ttEndSel) {
+                ttEndSel.innerHTML = html;
+                ttEndSel.value = String(Math.min(2, dailySteps.length - 1));
+            }
+        }
+
+        function syncTiktokPeriodUI() {
+            var ttSel = document.getElementById('tiktok-period-select');
+            var ttBadge = document.getElementById('tiktok-period-badge');
+            var customRow = document.getElementById('tiktok-custom-range-row');
+            if (!ttSel) return;
+            var val = ttSel.value;
+            if (customRow) customRow.style.display = (val === 'custom') ? 'flex' : 'none';
+            if (ttBadge) {
+                var txt = '3 jours';
+                if (val === '24h') txt = '24h';
+                else if (val === '5j') txt = '5 jours';
+                else if (val === '7j') txt = '7 jours';
+                else if (val === '10j') txt = '10 jours';
+                else if (val === 'all') txt = 'Tout le run';
+                else if (val === 'custom') txt = 'Personnalisée';
+                ttBadge.textContent = txt;
+            }
+        }
+
+        function activatePeriodMode(optionalParam) {
+            if (optionalParam) {
+                periodParam = optionalParam;
+                var pParamSel = document.getElementById('amfm-period-param-select');
+                if (pParamSel) {
+                    var valToSet = optionalParam;
+                    if (valToSet === 'temperature_max_periode') valToSet = 'temperature_max_24h';
+                    else if (valToSet === 'temperature_min_periode') valToSet = 'temperature_min_24h';
+                    else if (valToSet === 'pluie_periode') valToSet = 'pluie_24h';
+                    else if (valToSet === 'rafales_max_periode') valToSet = 'rafales_max_24h';
+                    pParamSel.value = valToSet;
+                }
+            }
+            var bar = document.getElementById('amfm-period-bar');
+            if (bar) bar.style.display = 'flex';
+            var btn = document.getElementById('btn-toggle-period');
+            if (btn) {
+                btn.classList.add('is-active');
+                btn.setAttribute('aria-pressed', 'true');
+            }
+            populatePeriodDaySelects();
+            var sSel = document.getElementById('amfm-period-start');
+            var eSel = document.getElementById('amfm-period-end');
+            if (sSel && eSel) {
+                periodStartDay = parseInt(sSel.value, 10) || 0;
+                periodEndDay = parseInt(eSel.value, 10) || 2;
+            }
+            computeAndDisplayPeriodComposite();
+        }
+
+        function deactivatePeriodMode() {
+            isPeriodMode = false;
+            var bar = document.getElementById('amfm-period-bar');
+            if (bar) bar.style.display = 'none';
+            var btn = document.getElementById('btn-toggle-period');
+            if (btn) {
+                btn.classList.remove('is-active');
+                btn.setAttribute('aria-pressed', 'false');
+            }
+            if (currentLayer && currentLayer.indexOf('_periode') !== -1) {
+                if (currentLayer === 'temperature_max_periode') currentLayer = (manifest.layers && manifest.layers['temperature_max_24h']) ? 'temperature_max_24h' : 'temperature';
+                else if (currentLayer === 'temperature_min_periode') currentLayer = (manifest.layers && manifest.layers['temperature_min_24h']) ? 'temperature_min_24h' : 'temperature';
+                else if (currentLayer === 'pluie_periode') currentLayer = (manifest.layers && manifest.layers['pluie_24h']) ? 'pluie_24h' : ((manifest.layers && manifest.layers['pluie_cumul']) ? 'pluie_cumul' : 'pluie_1h');
+                else if (currentLayer === 'rafales_max_periode') currentLayer = (manifest.layers && manifest.layers['rafales_max_24h']) ? 'rafales_max_24h' : 'rafales';
+            }
+            var dSel = document.getElementById('direct-layer-select');
+            if (dSel) dSel.value = currentLayer;
+            buildLegend();
+            renderStep(currentStep);
+        }
+
+        function computeAndDisplayPeriodComposite() {
+            if (isPeriodComputing) return;
+            isPeriodComputing = true;
+            if (loading) loading.hidden = false;
+            setToolHint('Calcul de la synthèse cartographique en cours…');
+
+            computePeriodComposite(periodParam, periodStartDay, periodEndDay).then(function(compRes) {
+                isPeriodComputing = false;
+                if (loading) loading.hidden = true;
+                isPeriodMode = true;
+                periodCompositeCanvas = compRes.canvas;
+                periodCompositeProbe = compRes.probe;
+
+                currentLayer = (periodParam.indexOf('_periode') !== -1) ? periodParam : (
+                    periodParam.indexOf('max_24h') !== -1 ? 'temperature_max_periode' :
+                    (periodParam.indexOf('min_24h') !== -1 ? 'temperature_min_periode' :
+                    (periodParam.indexOf('pluie') !== -1 ? 'pluie_periode' :
+                    (periodParam.indexOf('rafale') !== -1 ? 'rafales_max_periode' : periodParam)))
+                );
+
+                uploadWeatherImage(compRes.canvas);
+                currentProbe = compRes.probe;
+
+                var headline = app.querySelector('[data-amfm-headline]');
+                if (headline) {
+                    headline.innerHTML = '';
+                    var layerSpan = document.createElement('span');
+                    layerSpan.className = 'amfm-headline-layer';
+                    layerSpan.textContent = compRes.label + ' (' + compRes.unit + ') — ';
+                    headline.appendChild(layerSpan);
+                    headline.appendChild(document.createTextNode('Période du ' + compRes.dateStartStr + ' au ' + compRes.dateEndStr + ' (' + compRes.numDays + ' jours)'));
+                }
+
+                if (badgeParam) {
+                    badgeParam.textContent = compRes.label + ' (' + compRes.unit + ')';
+                }
+                if (badgeDate) {
+                    badgeDate.innerHTML = 'Période : ' + compRes.dateStartStr + ' au ' + compRes.dateEndStr + ' <span class="amfm-badge-lead">(' + compRes.numDays + 'j)</span>';
+                }
+                if (validity) {
+                    validity.textContent = 'Période : ' + compRes.dateStartStr + ' au ' + compRes.dateEndStr;
+                }
+                if (lead) {
+                    lead.textContent = compRes.numDays + ' jours';
+                }
+
+                buildLegend();
+                scheduleRender();
+                setToolHint('Synthèse ' + compRes.label + ' (' + compRes.numDays + ' jours) affichée !');
+            }).catch(function(err) {
+                isPeriodComputing = false;
+                if (loading) loading.hidden = true;
+                console.error('Erreur synthèse période:', err);
+                setToolHint('Erreur lors du calcul de la synthèse.');
             });
         }
 
@@ -3368,7 +3957,7 @@
 
         function buildLegend() {
             if (!legend || !manifest || !manifest.layers) return;
-            var layer = manifest.layers[currentLayer];
+            var layer = (manifest && manifest.layers && manifest.layers[currentLayer]) || (window.WEATHER_PALETTES && window.WEATHER_PALETTES[currentLayer]);
             var labelEl = app.querySelector('[data-amfm-legend-label]');
             var unitEl = app.querySelector('[data-amfm-legend-unit]');
             var barEl = app.querySelector('[data-amfm-legend-bar]');
@@ -3762,7 +4351,8 @@
             var opts = dSel.querySelectorAll('option');
             for (var oi = 0; oi < opts.length; oi++) {
                 var val = opts[oi].value;
-                var available = !!manifest.layers[val];
+                var isPeriodVal = (val.indexOf('_periode') !== -1);
+                var available = !!manifest.layers[val] || isPeriodVal;
                 opts[oi].hidden = !available;
                 opts[oi].style.display = available ? '' : 'none';
             }
@@ -3772,7 +4362,7 @@
                 grps[gi].hidden = (visibleOpts.length === 0);
                 grps[gi].style.display = (visibleOpts.length === 0) ? 'none' : '';
             }
-            if (dSel.value && !manifest.layers[dSel.value]) {
+            if (dSel.value && !manifest.layers[dSel.value] && dSel.value.indexOf('_periode') === -1) {
                 dSel.value = currentLayer;
             }
         }
@@ -3889,6 +4479,10 @@
                     var isFranceOnly = (modelKey.indexOf('_france') !== -1);
                     var isArpegeEu = (modelKey === 'arpege');
                     syncDirectLayerSelect();
+                    populatePeriodDaySelects();
+                    if (isPeriodMode) {
+                        computeAndDisplayPeriodComposite();
+                    }
                     if (isArpegeEu && (currentLayer === 'temperature' || currentLayer === 'temperature_ressentie' || currentLayer === 'point_rosee' || currentLayer === 'humidex' || currentLayer === 'temperature_min_24h' || currentLayer === 'temperature_max_24h')) {
                         currentLayer = 'geopotentiel_500';
                         var dSel = document.getElementById('direct-layer-select');
@@ -4051,6 +4645,13 @@
         var pendingLayer = null;
 
         function setLayer(layer) {
+            if (layer && layer.indexOf('_periode') !== -1) {
+                activatePeriodMode(layer);
+                return;
+            }
+            if (isPeriodMode) {
+                deactivatePeriodMode();
+            }
             if (!manifest || !manifest.layers[layer]) {
                 if (layer === 'vagues' || layer === 'periode_vagues') {
                     // Les vagues sont issues du couplage mondial GFS Wave (NWW3) :
@@ -4418,23 +5019,28 @@
 
         function uploadWeatherImage(source) {
             currentWeatherImage = source;
-            if (!webgl) {
+            if (!webgl || webgl.gl.isContextLost()) {
                 scheduleRender();
                 return;
             }
             var gl = webgl.gl;
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, webgl.texture);
-            gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-            gl.texImage2D(
-                gl.TEXTURE_2D,
-                0,
-                gl.RGBA,
-                gl.RGBA,
-                gl.UNSIGNED_BYTE,
-                source
-            );
-            webgl.ready = true;
+            try {
+                gl.activeTexture(gl.TEXTURE0);
+                gl.bindTexture(gl.TEXTURE_2D, webgl.texture);
+                gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+                gl.texImage2D(
+                    gl.TEXTURE_2D,
+                    0,
+                    gl.RGBA,
+                    gl.RGBA,
+                    gl.UNSIGNED_BYTE,
+                    source
+                );
+                webgl.ready = true;
+            } catch (err) {
+                console.warn('[uploadWeatherImage] WebGL upload fallback:', err);
+                webgl.ready = false;
+            }
             scheduleRender();
         }
 
@@ -4443,7 +5049,7 @@
                 return;
             }
             resizeCanvas(weatherCanvas, width, height, pixelRatio);
-            if (webgl) {
+            if (webgl && !webgl.gl.isContextLost()) {
                 var gl = webgl.gl;
                 gl.viewport(0, 0, weatherCanvas.width, weatherCanvas.height);
                 gl.useProgram(webgl.program);
@@ -6566,11 +7172,11 @@
             resizeCanvas(valuesCanvas, width, height, pixelRatio);
             valuesContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
             valuesContext.clearRect(0, 0, width, height);
-            if (!valuesVisible || !manifest || !currentLayer || !manifest.layers[currentLayer] || (!samplerReady && !currentProbe)) {
+            if (!valuesVisible || !manifest || !currentLayer || (!manifest.layers[currentLayer] && !isPeriodMode) || (!samplerReady && !currentProbe)) {
                 return;
             }
 
-            var layer = manifest.layers[currentLayer];
+            var layer = (manifest.layers && manifest.layers[currentLayer]) || (window.WEATHER_PALETTES && window.WEATHER_PALETTES[currentLayer]);
             var mapRect = computeMapRect(width, height);
             var isEurope = isEuropeDomain();
             // Pas de la grille dense et équilibré identique à AROME HD
@@ -6889,6 +7495,123 @@
         if (captureTiktokButton) {
             captureTiktokButton.addEventListener('click', function () { downloadTiktokPack(); });
         }
+
+        var captureTiktokSummaryBtn = document.getElementById('btn-tiktok-summary') || app.querySelector('[data-amfm-capture-tiktok-summary]');
+        if (captureTiktokSummaryBtn) {
+            captureTiktokSummaryBtn.addEventListener('click', function () { downloadTiktokSummaryCard(); });
+        }
+
+        var tiktokPeriodSel = document.getElementById('tiktok-period-select');
+        if (tiktokPeriodSel) {
+            tiktokPeriodSel.addEventListener('change', function () {
+                syncTiktokPeriodUI();
+                var val = tiktokPeriodSel.value;
+                document.querySelectorAll('.amfm-period-pill').forEach(function (p) {
+                    var pDays = p.getAttribute('data-period-days');
+                    var match = (val === '24h' && pDays === '1') || (val === 'all' && pDays === 'all') || (val === pDays + 'j');
+                    p.classList.toggle('is-active', match);
+                });
+            });
+            syncTiktokPeriodUI();
+        }
+
+        var tiktokStartSel = document.getElementById('tiktok-start-day');
+        var tiktokEndSel = document.getElementById('tiktok-end-day');
+        if (tiktokStartSel) {
+            tiktokStartSel.addEventListener('change', function () {
+                var s = parseInt(tiktokStartSel.value, 10) || 0;
+                var e = parseInt(tiktokEndSel.value, 10) || 0;
+                if (e < s && tiktokEndSel) tiktokEndSel.value = String(s);
+            });
+        }
+        if (tiktokEndSel) {
+            tiktokEndSel.addEventListener('change', function () {
+                var s = parseInt(tiktokStartSel.value, 10) || 0;
+                var e = parseInt(tiktokEndSel.value, 10) || 0;
+                if (e < s && tiktokStartSel) tiktokStartSel.value = String(e);
+            });
+        }
+
+        // Contrôles du Mode Période (Bandeau et bouton navbar)
+        var btnTogglePeriod = document.getElementById('btn-toggle-period') || app.querySelector('[data-amfm-toggle-period]');
+        if (btnTogglePeriod) {
+            btnTogglePeriod.addEventListener('click', function () {
+                if (isPeriodMode) deactivatePeriodMode();
+                else activatePeriodMode();
+            });
+        }
+        var periodCloseBtn = document.getElementById('amfm-period-close');
+        if (periodCloseBtn) {
+            periodCloseBtn.addEventListener('click', function () {
+                deactivatePeriodMode();
+            });
+        }
+        var periodParamSel = document.getElementById('amfm-period-param-select');
+        if (periodParamSel) {
+            periodParamSel.addEventListener('change', function (e) {
+                periodParam = e.target.value;
+                var dSel = document.getElementById('direct-layer-select');
+                if (dSel) {
+                    var mapOpt = periodParam;
+                    if (mapOpt.indexOf('max_24h') !== -1) mapOpt = 'temperature_max_periode';
+                    else if (mapOpt.indexOf('min_24h') !== -1) mapOpt = 'temperature_min_periode';
+                    else if (mapOpt.indexOf('pluie') !== -1) mapOpt = 'pluie_periode';
+                    else if (mapOpt.indexOf('rafale') !== -1) mapOpt = 'rafales_max_periode';
+                    dSel.value = mapOpt;
+                }
+                computeAndDisplayPeriodComposite();
+            });
+        }
+        document.querySelectorAll('.amfm-period-pill').forEach(function (pill) {
+            pill.addEventListener('click', function () {
+                document.querySelectorAll('.amfm-period-pill').forEach(function (p) { p.classList.remove('is-active'); });
+                pill.classList.add('is-active');
+                var daysAttr = pill.getAttribute('data-period-days');
+                var dailySteps = getDailyStepsForParam(periodParam);
+                var total = dailySteps.length || 16;
+                var startIdx = 0;
+                var endIdx = 2;
+                if (daysAttr === '1' || daysAttr === '24h') endIdx = 0;
+                else if (daysAttr === '3') endIdx = Math.min(2, total - 1);
+                else if (daysAttr === '5') endIdx = Math.min(4, total - 1);
+                else if (daysAttr === '7') endIdx = Math.min(6, total - 1);
+                else if (daysAttr === '10') endIdx = Math.min(9, total - 1);
+                else if (daysAttr === 'all') endIdx = total - 1;
+
+                var startSel = document.getElementById('amfm-period-start');
+                var endSel = document.getElementById('amfm-period-end');
+                if (startSel) startSel.value = String(startIdx);
+                if (endSel) endSel.value = String(endIdx);
+
+                var ttSel = document.getElementById('tiktok-period-select');
+                if (ttSel) {
+                    if (daysAttr === 'all') ttSel.value = 'all';
+                    else if (daysAttr === '1') ttSel.value = '24h';
+                    else if (['3', '5', '7', '10'].indexOf(daysAttr) !== -1) ttSel.value = daysAttr + 'j';
+                    syncTiktokPeriodUI();
+                }
+
+                periodStartDay = startIdx;
+                periodEndDay = endIdx;
+                computeAndDisplayPeriodComposite();
+            });
+        });
+        var pStartSel = document.getElementById('amfm-period-start');
+        var pEndSel = document.getElementById('amfm-period-end');
+        function onPeriodCustomRangeChange() {
+            var s = parseInt(pStartSel.value, 10) || 0;
+            var e = parseInt(pEndSel.value, 10) || 0;
+            if (e < s) {
+                e = s;
+                pEndSel.value = String(e);
+            }
+            document.querySelectorAll('.amfm-period-pill').forEach(function (p) { p.classList.remove('is-active'); });
+            periodStartDay = s;
+            periodEndDay = e;
+            computeAndDisplayPeriodComposite();
+        }
+        if (pStartSel) pStartSel.addEventListener('change', onPeriodCustomRangeChange);
+        if (pEndSel) pEndSel.addEventListener('change', onPeriodCustomRangeChange);
 
         // Dropdown Export : ouvrir/fermer + fermeture au clic extérieur
         var exportWrap = document.getElementById('amfm-export-wrap');
@@ -7585,6 +8308,7 @@
                         !window.matchMedia('(max-width: 760px)').matches);
                 }
                 syncDirectLayerSelect();
+                populatePeriodDaySelects();
                 var regSel = document.getElementById('select-region');
                 if (regSel) {
                     var isFr = (currentModel.indexOf('_france') !== -1);
