@@ -2617,8 +2617,8 @@
 
             var ttOccupied = [];
             if (includeBranding) {
-                ttOccupied.push({ left: 0, right: 1080, top: 0, bottom: 250 });
-                ttOccupied.push({ left: 0, right: 1080, top: 1560, bottom: 1920 });
+                ttOccupied.push({ left: 1080 - 36 - 340 - 20, right: 1080, top: 0, bottom: 180 });
+                ttOccupied.push({ left: 0, right: 1080, top: 1540, bottom: 1920 });
             }
 
             // 6. Cartouches TV broadcast (Badges)
@@ -2672,7 +2672,7 @@
                     var badge = allBadgesToDraw[bi];
                     var cx = badge.u * 2200;
                     var cy = badge.v * 1640;
-                    if (badge.isCorse) cx -= 255;
+                    if (badge.isCorse) cx -= 300;
                     if (badge.isBretagne) cx += 60;
                     var bx = targetX + (cx - cropX) * (targetW / cropW);
                     var by = targetY + (cy - cropY) * (targetH / cropH);
@@ -2753,18 +2753,30 @@
                         ttCtx.restore();
                     } else {
                         var text = badge.label;
-                        ttCtx.font = 'bold ' + bFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+                        var curFontSize = 42;
+                        ttCtx.font = 'bold ' + curFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
                         var tw = ttCtx.measureText(text).width;
-                        var padX = 26, padY = 14;
-                        var bw = Math.max(220, tw + padX * 2);
-                        var bh = bFontSize + padY * 2;
-                        var rad = 18;
+                        var padX = 20, padY = 11;
+                        var bw = Math.max(185, tw + padX * 2);
+                        var bh = curFontSize + padY * 2;
+                        var rad = 14;
+
+                        // Clamp pour que les cartouches ne mordent JAMAIS sur la frontière est ou la droite
+                        var isCorseBadge = !!badge.isCorse;
+                        var maxRight = isCorseBadge ? 970 : 830;
+                        var minLeft = 70;
+                        if (bx + bw / 2 > maxRight) {
+                            bx = maxRight - bw / 2;
+                        }
+                        if (bx - bw / 2 < minLeft) {
+                            bx = minLeft + bw / 2;
+                        }
 
                         var bRect = {
-                            left: bx - bw / 2 - 10,
-                            right: bx + bw / 2 + 10,
-                            top: by - bh / 2 - 10,
-                            bottom: by + bh / 2 + 10
+                            left: bx - bw / 2 - 8,
+                            right: bx + bw / 2 + 8,
+                            top: by - bh / 2 - 8,
+                            bottom: by + bh / 2 + 8
                         };
                         var clash = false;
                         for (var oi = 0; oi < ttOccupied.length; oi++) {
@@ -3008,44 +3020,18 @@
                 }
             }
 
-            // 8. Habillage Broadcast (Titre, Logo, Légende)
+            // 8. Habillage Broadcast (Logo officiel et légende en bas, SANS bandeau titre supérieur)
             if (includeBranding) {
                 ttCtx.save();
                 var pLabel = titleText || (manifest && manifest.layers && manifest.layers[layerKey] ? manifest.layers[layerKey].label : layerKey);
                 var pUnit = (window.getLayerPalette && window.getLayerPalette(layerKey) && window.getLayerPalette(layerKey).unit) || '';
-                var mTitle = modelText || (manifest && manifest.model_name ? manifest.model_name : 'GFS France 0.25°');
-                var rTag = runText ? (' • ' + runText) : '';
-                var dText = dateText || '';
 
-                var boxX = 24, boxY = 48, boxW = 700, boxH = 175;
-                ttCtx.fillStyle = 'rgba(7, 11, 20, 0.94)';
-                ttCtx.strokeStyle = 'rgba(0, 210, 255, 0.8)';
-                ttCtx.lineWidth = 3;
-                ttCtx.beginPath();
-                if (typeof ttCtx.roundRect === 'function') ttCtx.roundRect(boxX, boxY, boxW, boxH, 16);
-                else ttCtx.rect(boxX, boxY, boxW, boxH);
-                ttCtx.fill();
-                ttCtx.stroke();
-
-                ttCtx.textAlign = 'left';
-                ttCtx.textBaseline = 'alphabetic';
-                ttCtx.fillStyle = '#ffffff';
-                ttCtx.font = '700 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                ttCtx.fillText(pLabel + (pUnit ? ' (' + pUnit + ')' : ''), boxX + 24, boxY + 48);
-
-                ttCtx.fillStyle = '#00d2ff';
-                ttCtx.font = '700 24px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                ttCtx.fillText(mTitle + rTag, boxX + 24, boxY + 90);
-
-                ttCtx.fillStyle = '#ffffff';
-                ttCtx.font = '800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-                ttCtx.fillText(dText, boxX + 24, boxY + 142);
-
+                // Logo officiel en haut à droite (sans bandeau titre à gauche)
                 if (logoImage && logoImage.complete && logoImage.naturalWidth) {
-                    var logoW = 320;
+                    var logoW = 340;
                     var logoH = Math.round(logoW * logoImage.naturalHeight / logoImage.naturalWidth);
-                    var logoX = 1080 - 24 - logoW;
-                    var logoY = boxY + (boxH - logoH) / 2;
+                    var logoX = 1080 - 36 - logoW;
+                    var logoY = 48;
                     ttCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
                     ttCtx.shadowBlur = 12;
                     ttCtx.shadowOffsetX = 3;
