@@ -789,7 +789,26 @@
         };
     });
 
-    function getLayerPalette(key) { return PALETTES[key] || PALETTES.temperature; }
+    // Aliases pour les synthèses sur période et cumuls 24h
+    PALETTES.temperature_max_periode = PALETTES.temperature;
+    PALETTES.temperature_min_periode = PALETTES.temperature;
+    PALETTES.pluie_periode = PALETTES.pluie_cumul;
+    PALETTES.rafales_max_periode = PALETTES.rafales;
+    PALETTES.temperature_max_24h = PALETTES.temperature;
+    PALETTES.temperature_min_24h = PALETTES.temperature;
+    PALETTES.pluie_24h = PALETTES.pluie_cumul;
+    PALETTES.rafales_max_24h = PALETTES.rafales;
+
+    function getLayerPalette(key) {
+        if (!key) return PALETTES.temperature;
+        if (PALETTES[key]) return PALETTES[key];
+        var lk = String(key).toLowerCase();
+        if (lk.indexOf('temperature') !== -1 || lk.indexOf('temp') !== -1) return PALETTES.temperature;
+        if (lk.indexOf('pluie') !== -1 || lk.indexOf('precip') !== -1) return PALETTES.pluie_cumul || PALETTES.pluie_1h;
+        if (lk.indexOf('vent') !== -1 || lk.indexOf('rafale') !== -1) return PALETTES.rafales || PALETTES.vent;
+        if (lk.indexOf('neige') !== -1) return PALETTES.neige;
+        return PALETTES.temperature;
+    }
     function paletteGradientCSS(key) {
         var pal = getLayerPalette(key); var stops = pal.stops;
         var low = (pal.transparent_below !== null && pal.transparent_below !== undefined) ? pal.transparent_below : stops[0].value;

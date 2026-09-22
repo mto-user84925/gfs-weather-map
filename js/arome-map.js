@@ -254,6 +254,9 @@
         window._getCurrentWeatherImage = function() { return currentWeatherImage; };
         window._getCurrentLayer = function() { return currentLayer; };
         window._getTiktokAssets = function() { return tiktokAssets; };
+        window._renderTiktokCardToCanvas = function() { return renderTiktokCardToCanvas.apply(null, arguments); };
+        window._getCurrentProbe = function() { return currentProbe; };
+        window._getPeriodCompositeCanvas = function() { return periodCompositeCanvas; };
         var franceMaskImage = new Image();
         franceMaskImage.crossOrigin = 'anonymous';
         franceMaskImage.src = resolvePath('maps/mask_france.png');
@@ -976,6 +979,14 @@
             }
         }
 
+                function isImageOrCanvasReady(img) {
+            if (!img) return false;
+            if (typeof img.getContext === 'function' || (typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement)) {
+                return (img.width > 0 && img.height > 0);
+            }
+            return !!(img.complete && (img.naturalWidth || img.width));
+        }
+
         function composeCaptureCanvas(customStep, customImage, isScreen) {
             var activeImg = customImage || currentWeatherImage;
             var vw = viewport.clientWidth;
@@ -1110,7 +1121,7 @@
             }
 
             // Dalle météo (si disponible)
-            if (activeImg && activeImg.complete && activeImg.naturalWidth) {
+            if (isImageOrCanvasReady(activeImg)) {
                 var weatherMasked = document.createElement('canvas');
                 weatherMasked.width = output.width;
                 weatherMasked.height = output.height;
@@ -1190,7 +1201,7 @@
                 context.globalAlpha = 1;
             }
 
-            if (frontsVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
+            if (frontsVisible && isImageOrCanvasReady(activeImg)) {
                 var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
                 var fMask = (isFranceDomain && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
                 var exportFrontsData = computeTvFrontsData(activeImg, currentLayer, fMask);
@@ -1313,6 +1324,16 @@
             var dateText = dateStr + (step ? ' (H+' + String(step.lead_hour).padStart(2, '0') + ')' : '');
             var modelAndRun = modelTitle + (runLabel ? ' • ' + runLabel : '');
 
+            if (isPeriodMode || currentLayer.indexOf('_periode') !== -1) {
+                if (currentPeriodInfo) {
+                    paramTitle = 'SYNTHÈSE : ' + currentPeriodInfo.label + (currentPeriodInfo.unit ? ' (' + currentPeriodInfo.unit + ')' : '');
+                    dateText = 'Période du ' + currentPeriodInfo.dateStartStr + ' au ' + currentPeriodInfo.dateEndStr + ' (' + currentPeriodInfo.numDays + 'j)';
+                } else {
+                    paramTitle = 'SYNTHÈSE : ' + (prettyLabel || 'Période') + (prettyUnit ? ' (' + prettyUnit + ')' : '');
+                    dateText = 'Synthèse multi-jours';
+                }
+            }
+
             context.font = '700 38px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
             var w1 = context.measureText(paramTitle).width;
             context.font = '700 26px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -1360,7 +1381,7 @@
             // (Z500 : légende intégrée dans l'image elle-même → pas de surimpression)
             var legendY = 0, legendX = 0, legendW = 0, legendH = 0;
             var z500HasEmbeddedLegend = (currentLayer === 'geopotentiel_500' || currentLayer === 'geopotentiel_500_meteociel');
-            if (layer && !z500HasEmbeddedLegend && typeof window.getLayerPalette === 'function' && typeof window.paletteTicks === 'function') {
+            if ((layer || isPeriodMode || currentLayer.indexOf('_periode') !== -1) && !z500HasEmbeddedLegend && typeof window.getLayerPalette === 'function' && typeof window.paletteTicks === 'function') {
                 try {
                     // Légende toujours à l'intérieur de la zone carte (jamais sur le fond noir)
                     legendW = Math.min(1100, Math.max(200, mapRect.right - mapRect.left - 48));
@@ -1386,7 +1407,8 @@
                     context.font = '700 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
                     context.textAlign = 'center';
                     context.textBaseline = 'alphabetic';
-                    context.fillText(prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''), legendX + legendW / 2, legendY + 30);
+                    var legendLabelText = (isPeriodMode && currentPeriodInfo) ? (currentPeriodInfo.label + (currentPeriodInfo.unit ? ' (' + currentPeriodInfo.unit + ')' : '')) : (prettyLabel + (prettyUnit ? ' (' + prettyUnit + ')' : ''));
+                    context.fillText(legendLabelText, legendX + legendW / 2, legendY + 30);
 
                     // Barre
                     var pal = window.getLayerPalette(currentLayer);
@@ -1460,7 +1482,7 @@
             }
 
             // 📺 Cartouches TV broadcast automatiques (si l'option "Lignes TV" est active / cochée)
-            if (frontsVisible && activeImg && activeImg.complete && activeImg.naturalWidth) {
+            if (frontsVisible && isImageOrCanvasReady(activeImg)) {
                 try {
                     var isFranceDom = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
                     var fMask = (isFranceDom && typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
@@ -1472,8 +1494,8 @@
                         if (isFranceDom && window.getLayerPalette && typeof valueFromColour === 'function') {
                             try {
                                 var sCan = document.createElement('canvas');
-                                sCan.width = activeImg.naturalWidth || 2200;
-                                sCan.height = activeImg.naturalHeight || 1640;
+                                sCan.width = activeImg.naturalWidth || activeImg.width || 2200;
+                                sCan.height = activeImg.naturalHeight || activeImg.height || natH;
                                 var sCtx = sCan.getContext('2d');
                                 sCtx.drawImage(activeImg, 0, 0);
                                 var cPix = sCtx.getImageData(1760, 1334, 1, 1).data;
@@ -1704,9 +1726,9 @@
             }
 
             // Grille de valeurs numériques (si valuesVisible activé)
-            if (valuesVisible && manifest && manifest.layers && manifest.layers[currentLayer]) {
+            var vLayer = (manifest && manifest.layers && manifest.layers[currentLayer]) || (window.getLayerPalette ? window.getLayerPalette(currentLayer) : null);
+            if (valuesVisible && (vLayer || isPeriodMode || currentLayer.indexOf('_periode') !== -1)) {
                 try {
-                    var vLayer = manifest.layers[currentLayer];
                     var stepGrid = hScale < 1.35 ? 88 : (hScale < 2.5 ? 78 : 66);
                     var valFontSize = hScale < 1.35 ? 30 : 32;
                     context.font = '900 ' + valFontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
@@ -1716,13 +1738,20 @@
 
                     // Sampler couleur local (fallback si pas de probe HKV)
                     var localSampler = samplerContext;
-                    if (customImage && customImage.complete && customImage.naturalWidth) {
+                    if (isImageOrCanvasReady(customImage)) {
                         var tempS = document.createElement('canvas');
-                        tempS.width = customImage.naturalWidth || 2200;
-                        tempS.height = customImage.naturalHeight || 1640;
+                        tempS.width = customImage.naturalWidth || customImage.width || 2200;
+                        tempS.height = customImage.naturalHeight || customImage.height || 1640;
                         var tempCtx = tempS.getContext('2d', { willReadFrequently: true });
                         tempCtx.drawImage(customImage, 0, 0);
                         localSampler = tempCtx;
+                    } else if (isImageOrCanvasReady(activeImg)) {
+                        var tempS2 = document.createElement('canvas');
+                        tempS2.width = activeImg.naturalWidth || activeImg.width || 2200;
+                        tempS2.height = activeImg.naturalHeight || activeImg.height || 1640;
+                        var tempCtx2 = tempS2.getContext('2d', { willReadFrequently: true });
+                        tempCtx2.drawImage(activeImg, 0, 0);
+                        localSampler = tempCtx2;
                     }
 
                     for (var gy = stepGrid / 2; gy < output.height - 20; gy += stepGrid) {
@@ -1754,7 +1783,8 @@
                                 var py = Math.min(Math.max(0, Math.round(gv * (localSampler.canvas.height - 1))), localSampler.canvas.height - 1);
                                 var pix = localSampler.getImageData(px, py, 1, 1).data;
                                 if (pix[3] >= 12) {
-                                    gVal = valueFromColour(pix[0], pix[1], pix[2], vLayer);
+                                    var vPal = (window.getLayerPalette ? window.getLayerPalette(currentLayer) : null) || vLayer;
+                                    gVal = valueFromColour(pix[0], pix[1], pix[2], vPal);
                                 }
                             }
                             if (gVal === null || !Number.isFinite(gVal)) continue;
@@ -2485,80 +2515,89 @@
             var includeValues = !!options.includeValues;
             var layoutMode = options.layoutMode || 'bureau';
 
-            // 1. Calque métropole masqué
-            var mCanvas = document.createElement('canvas');
-            mCanvas.width = 2200;
-            mCanvas.height = 1640;
-            var mCtx = mCanvas.getContext('2d');
-            mCtx.drawImage(img, 0, 0, 2200, 1640);
-            mCtx.globalCompositeOperation = 'destination-in';
-            mCtx.drawImage(assets.maskMainland, 0, 0, 2200, 1640);
-
-            // 2. Calque Corse masqué
-            var cCanvas = document.createElement('canvas');
-            cCanvas.width = 2200;
-            cCanvas.height = 1640;
-            var cCtx = cCanvas.getContext('2d');
-            cCtx.drawImage(img, 0, 0, 2200, 1640);
-            cCtx.globalCompositeOperation = 'destination-in';
-            cCtx.drawImage(assets.maskCorse, 0, 0, 2200, 1640);
-
-            // 3. Assemblage 2200×1640
-            var composeCanvas = document.createElement('canvas');
-            composeCanvas.width = 2200;
-            composeCanvas.height = 1640;
-            var compCtx = composeCanvas.getContext('2d');
-            compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
-            compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
-            compCtx.drawImage(cCanvas, -150, 0, 2200, 1640); // Corse décalée de -150px
-            compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
-
-            // 4. Lignes TV broadcast épaisses (11px)
+            var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
+            var composeCanvas = null;
+            var cCanvas = null;
             var frontsData = null;
-            if (includeFronts) {
-                frontsData = computeTvFrontsData(img, layerKey, assets ? assets.maskMainland : null);
-                if (frontsData && frontsData.lines && frontsData.lines.length) {
-                    var fCanvas = document.createElement('canvas');
-                    fCanvas.width = 2200;
-                    fCanvas.height = 1640;
-                    var fCtx = fCanvas.getContext('2d');
-                    fCtx.lineCap = 'round';
-                    fCtx.lineJoin = 'round';
-                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                    fCtx.shadowBlur = 14;
-                    fCtx.shadowOffsetX = 4;
-                    fCtx.shadowOffsetY = 4;
-                    fCtx.strokeStyle = '#ffffff';
-                    fCtx.lineWidth = 11;
 
-                    for (var li = 0; li < frontsData.lines.length; li++) {
-                        var line = frontsData.lines[li];
-                        if (line.length < 2) continue;
-                        fCtx.beginPath();
-                        fCtx.moveTo(line[0][0] * 2200, line[0][1] * 1640);
-                        for (var pi = 1; pi < line.length; pi++) {
-                            fCtx.lineTo(line[pi][0] * 2200, line[pi][1] * 1640);
+            if (isFranceDomain && assets && assets.maskMainland && assets.maskCorse && assets.white && assets.borders) {
+                // 1. Calque métropole masqué
+                var mCanvas = document.createElement('canvas');
+                mCanvas.width = 2200;
+                mCanvas.height = 1640;
+                var mCtx = mCanvas.getContext('2d');
+                mCtx.drawImage(img, 0, 0, 2200, 1640);
+                mCtx.globalCompositeOperation = 'destination-in';
+                mCtx.drawImage(assets.maskMainland, 0, 0, 2200, 1640);
+
+                // 2. Calque Corse masqué
+                cCanvas = document.createElement('canvas');
+                cCanvas.width = 2200;
+                cCanvas.height = 1640;
+                var cCtx = cCanvas.getContext('2d');
+                cCtx.drawImage(img, 0, 0, 2200, 1640);
+                cCtx.globalCompositeOperation = 'destination-in';
+                cCtx.drawImage(assets.maskCorse, 0, 0, 2200, 1640);
+
+                // 3. Assemblage 2200×1640
+                composeCanvas = document.createElement('canvas');
+                composeCanvas.width = 2200;
+                composeCanvas.height = 1640;
+                var compCtx = composeCanvas.getContext('2d');
+                compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
+                compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
+                compCtx.drawImage(cCanvas, -150, 0, 2200, 1640); // Corse décalée de -150px
+                compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
+
+                // 4. Lignes TV broadcast épaisses (11px)
+                if (includeFronts) {
+                    frontsData = computeTvFrontsData(img, layerKey, assets.maskMainland);
+                    if (frontsData && frontsData.lines && frontsData.lines.length) {
+                        var fCanvas = document.createElement('canvas');
+                        fCanvas.width = 2200;
+                        fCanvas.height = 1640;
+                        var fCtx = fCanvas.getContext('2d');
+                        fCtx.lineCap = 'round';
+                        fCtx.lineJoin = 'round';
+                        fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                        fCtx.shadowBlur = 14;
+                        fCtx.shadowOffsetX = 4;
+                        fCtx.shadowOffsetY = 4;
+                        fCtx.strokeStyle = '#ffffff';
+                        fCtx.lineWidth = 11;
+
+                        for (var li = 0; li < frontsData.lines.length; li++) {
+                            var line = frontsData.lines[li];
+                            if (line.length < 2) continue;
+                            fCtx.beginPath();
+                            fCtx.moveTo(line[0][0] * 2200, line[0][1] * 1640);
+                            for (var pi = 1; pi < line.length; pi++) {
+                                fCtx.lineTo(line[pi][0] * 2200, line[pi][1] * 1640);
+                            }
+                            fCtx.stroke();
                         }
-                        fCtx.stroke();
-                    }
 
-                    var mfCanvas = document.createElement('canvas');
-                    mfCanvas.width = 2200;
-                    mfCanvas.height = 1640;
-                    var mfCtx = mfCanvas.getContext('2d');
-                    mfCtx.drawImage(fCanvas, 0, 0);
-                    mfCtx.globalCompositeOperation = 'destination-in';
-                    mfCtx.drawImage(assets.maskMainland, 0, 0);
-                    compCtx.drawImage(mfCanvas, 0, 0);
+                        var mfCanvas = document.createElement('canvas');
+                        mfCanvas.width = 2200;
+                        mfCanvas.height = 1640;
+                        var mfCtx = mfCanvas.getContext('2d');
+                        mfCtx.drawImage(fCanvas, 0, 0);
+                        mfCtx.globalCompositeOperation = 'destination-in';
+                        mfCtx.drawImage(assets.maskMainland, 0, 0);
+                        compCtx.drawImage(mfCanvas, 0, 0);
+                    }
                 }
+            } else if (includeFronts) {
+                frontsData = computeTvFrontsData(img, layerKey, null);
             }
 
-            // 5. Cadrage et centrage sur canevas TikTok 1080×1920
+            // 5. Cadrage et centrage sur canevas TikTok 1080×1920 avec fond sombre broadcast
             var ttCanvas = document.createElement('canvas');
             ttCanvas.width = 1080;
             ttCanvas.height = 1920;
             var ttCtx = ttCanvas.getContext('2d');
-            ttCtx.clearRect(0, 0, 1080, 1920);
+            ttCtx.fillStyle = '#070b14';
+            ttCtx.fillRect(0, 0, 1080, 1920);
 
             var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
             var targetW = 1040;
@@ -2566,7 +2605,15 @@
             var targetX = Math.round((1080 - targetW) / 2);
             var targetY = Math.round((1920 - targetH) / 2);
 
-            ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+            if (composeCanvas) {
+                ttCtx.drawImage(composeCanvas, cropX, cropY, cropW, cropH, targetX, targetY, targetW, targetH);
+            } else {
+                var natW = img.naturalWidth || img.width || 2200;
+                var natH = img.naturalHeight || img.height || 1640;
+                targetH = Math.round(targetW * (natH / natW));
+                targetY = Math.round((1920 - targetH) / 2);
+                ttCtx.drawImage(img, 0, 0, natW, natH, targetX, targetY, targetW, targetH);
+            }
 
             var ttOccupied = [];
             if (includeBranding) {
@@ -2577,7 +2624,7 @@
             // 6. Cartouches TV broadcast (Badges)
             if (includeFronts && frontsData && frontsData.badges && frontsData.badges.length) {
                 var allBadgesToDraw = frontsData.badges.slice();
-                if (assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
+                if (cCanvas && assets && assets.maskCorse && window.getLayerPalette && typeof valueFromColour === 'function') {
                     try {
                         var corseSampler = cCanvas.getContext('2d');
                         var cPix = corseSampler.getImageData(1760, 1310, 1, 1).data;
@@ -3197,8 +3244,8 @@
                 var zip = new window.JSZip();
                 var index = 0;
                 var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
-                var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'clean';
-                var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'broadcast';
+                var includeValues = document.getElementById('tiktok-values-checkbox') ? document.getElementById('tiktok-values-checkbox').checked : true;
                 var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
                 var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
                 var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
@@ -3345,7 +3392,7 @@
                 computePeriodComposite(paramKey, range.start, range.end).then(function(compRes) {
                     var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
                     var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'broadcast';
-                    var includeValues = document.getElementById('tiktok-values-checkbox') && document.getElementById('tiktok-values-checkbox').checked;
+                    var includeValues = document.getElementById('tiktok-values-checkbox') ? document.getElementById('tiktok-values-checkbox').checked : true;
                     var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
 
                     var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
@@ -3398,6 +3445,7 @@
         // ÉTAT & CONTRÔLEUR DU MODE PÉRIODE (BANDEAU SUPÉRIEUR CARTE)
         // ────────────────────────────────────────────────────────────────────
         var isPeriodMode = false;
+        var currentPeriodInfo = null;
         var periodParam = 'temperature_max_periode';
         var periodStartDay = 0;
         var periodEndDay = 2;
@@ -3502,6 +3550,7 @@
 
         function deactivatePeriodMode() {
             isPeriodMode = false;
+            currentPeriodInfo = null;
             var bar = document.getElementById('amfm-period-bar');
             if (bar) bar.style.display = 'none';
             var btn = document.getElementById('btn-toggle-period');
@@ -3531,6 +3580,7 @@
                 isPeriodComputing = false;
                 if (loading) loading.hidden = true;
                 isPeriodMode = true;
+                currentPeriodInfo = compRes;
                 periodCompositeCanvas = compRes.canvas;
                 periodCompositeProbe = compRes.probe;
 
@@ -7116,14 +7166,15 @@
         }
 
         function getValueColour(val, layerKey) {
-            if (layerKey === 'temperature' || layerKey === 'temperature_850' || layerKey === 'temperature_ressentie' || layerKey === 'point_rosee' || layerKey === 't2m') {
+            var lk = String(layerKey || '').toLowerCase();
+            if (lk.indexOf('temperature') !== -1 || lk.indexOf('temp') !== -1 || lk === 'point_rosee' || lk === 't2m') {
                 if (val >= 40) return '#ff2a6d'; // Canicule extrême (fuchsia)
                 if (val >= 35) return '#ff7b00'; // Très forte chaleur (orange vif)
                 if (val >= 30) return '#ffea00'; // Forte chaleur (jaune d'or dès 30°C)
                 if (val <= 0)  return '#70d6ff'; // Gelées (cyan éclatant)
                 return '#ffffff';
             }
-            if (layerKey === 'vent' || layerKey === 'vent_moyen' || layerKey === 'rafales' || layerKey === 'rafales_cumul' || layerKey === 'rafales_max_cumul' || layerKey === 'wind' || layerKey === 'gust') {
+            if (lk.indexOf('vent') !== -1 || lk.indexOf('rafale') !== -1 || lk.indexOf('wind') !== -1 || lk.indexOf('gust') !== -1) {
                 if (val >= 120) return '#ff2a6d'; // Tempête violente
                 if (val >= 105) return '#ff7b00'; // Tempête
                 if (val >= 90)  return '#ffea00'; // Fort coup de vent (dès 90 km/h)
