@@ -39,6 +39,9 @@ def assemble_model(model_key, domain, meta):
         run_dt = icon_open_data.latest_run()
     elif "aifs" in model_key:
         run_dt = aifs_open_data.latest_run()
+    elif "ifs" in model_key:
+        import ifs_open_data
+        run_dt = ifs_open_data.latest_run()
     else:
         run_dt = arpege_open_data.latest_run()
     meta["run_time"] = run_dt.isoformat()
@@ -135,6 +138,16 @@ def main():
         "provider": "DWD — open data (opendata.dwd.de)",
         "resolution": "7 km (~0.0625°)",
     })
+    assemble_model("ifs", EUROPE, {
+        "model_name": "ECMWF IFS 0.25° Europe",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
+    assemble_model("ifs_france", FRANCE, {
+        "model_name": "ECMWF IFS 0.25° France",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
     assemble_model("aifs", EUROPE, {
         "model_name": "ECMWF AIFS 0.25° Europe",
         "provider": "ECMWF — open data (data.ecmwf.int)",
@@ -146,7 +159,7 @@ def main():
         "resolution": "0.25° (~25 km)",
     })
 
-    # ── domaines mondiaux (GFS + AIFS uniquement) ────────────────────────────
+    # ── domaines mondiaux (GFS + IFS + AIFS) ────────────────────────────
     assemble_model("gfs_antilles", ANTILLES, {
         "model_name": "GFS 0.25° Arc Antillais",
         "provider": "NOAA (NOMADS) — open data",
@@ -155,6 +168,16 @@ def main():
     assemble_model("gfs_etats_unis", ETATS_UNIS, {
         "model_name": "GFS 0.25° États-Unis",
         "provider": "NOAA (NOMADS) — open data",
+        "resolution": "0.25° (~25 km)",
+    })
+    assemble_model("ifs_antilles", ANTILLES, {
+        "model_name": "ECMWF IFS 0.25° Arc Antillais",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
+    assemble_model("ifs_etats_unis", ETATS_UNIS, {
+        "model_name": "ECMWF IFS 0.25° États-Unis",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
         "resolution": "0.25° (~25 km)",
     })
     assemble_model("aifs_antilles", ANTILLES, {
@@ -177,9 +200,19 @@ def main():
         "provider": "ECMWF — open data (data.ecmwf.int)",
         "resolution": "0.25° (~25 km)",
     })
+    assemble_model("ifs_pacifique_est", PACIFIQUE_EST, {
+        "model_name": "ECMWF IFS 0.25° Pacifique Est & Hawaï",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
     assemble_model("gfs_pacifique_ouest", PACIFIQUE_OUEST, {
         "model_name": "GFS 0.25° Asie de l'Est & Typhons",
         "provider": "NOAA (NOMADS) — open data",
+        "resolution": "0.25° (~25 km)",
+    })
+    assemble_model("ifs_pacifique_ouest", PACIFIQUE_OUEST, {
+        "model_name": "ECMWF IFS 0.25° Asie de l'Est / Typhons",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
         "resolution": "0.25° (~25 km)",
     })
     assemble_model("aifs_pacifique_ouest", PACIFIQUE_OUEST, {
@@ -192,6 +225,11 @@ def main():
         "provider": "NOAA (NOMADS) — open data",
         "resolution": "0.25° (~25 km)",
     })
+    assemble_model("ifs_ocean_indien_nord", OCEAN_INDIEN_NORD, {
+        "model_name": "ECMWF IFS 0.25° Asie du Sud & Inde",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
     assemble_model("aifs_ocean_indien_nord", OCEAN_INDIEN_NORD, {
         "model_name": "ECMWF AIFS 0.25° Asie du Sud & Inde",
         "provider": "ECMWF — open data (data.ecmwf.int)",
@@ -202,6 +240,11 @@ def main():
         "provider": "NOAA (NOMADS) — open data",
         "resolution": "0.25° (~25 km)",
     })
+    assemble_model("ifs_ocean_indien", OCEAN_INDIEN, {
+        "model_name": "ECMWF IFS 0.25° Océan Indien",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
+        "resolution": "0.25° (~25 km)",
+    })
     assemble_model("aifs_ocean_indien", OCEAN_INDIEN, {
         "model_name": "ECMWF AIFS 0.25° Océan Indien",
         "provider": "ECMWF — open data (data.ecmwf.int)",
@@ -210,6 +253,11 @@ def main():
     assemble_model("gfs_pacifique_sud", PACIFIQUE_SUD, {
         "model_name": "GFS 0.25° Pacifique Sud & Océanie",
         "provider": "NOAA (NOMADS) — open data",
+        "resolution": "0.25° (~25 km)",
+    })
+    assemble_model("ifs_pacifique_sud", PACIFIQUE_SUD, {
+        "model_name": "ECMWF IFS 0.25° Pacifique Sud & Océanie",
+        "provider": "ECMWF — open data IFS (data.ecmwf.int)",
         "resolution": "0.25° (~25 km)",
     })
     assemble_model("aifs_pacifique_sud", PACIFIQUE_SUD, {

@@ -82,6 +82,15 @@
             arpege_france: { path: 'output/arpege_france', name: 'ARPEGE France', badge: '0,1°' },
             icon_eu: { path: 'output/icon_eu', name: 'ICON-EU Europe', badge: '7 km' },
             icon_eu_france: { path: 'output/icon_eu_france', name: 'ICON-EU France', badge: '7 km' },
+            ifs: { path: 'output/ifs', name: 'ECMWF IFS Europe', badge: '0,25°' },
+            ifs_france: { path: 'output/ifs_france', name: 'ECMWF IFS France', badge: '0,25°' },
+            ifs_antilles: { path: 'output/ifs_antilles', name: 'ECMWF IFS Arc Antillais', badge: '0,25°' },
+            ifs_etats_unis: { path: 'output/ifs_etats_unis', name: 'ECMWF IFS États-Unis', badge: '0,25°' },
+            ifs_ocean_indien: { path: 'output/ifs_ocean_indien', name: 'ECMWF IFS Océan Indien Sud-Ouest', badge: '0,25°' },
+            ifs_pacifique_ouest: { path: 'output/ifs_pacifique_ouest', name: 'ECMWF IFS Pacifique Ouest / Typhons', badge: '0,25°' },
+            ifs_pacifique_sud: { path: 'output/ifs_pacifique_sud', name: 'ECMWF IFS Pacifique Sud & Océanie', badge: '0,25°' },
+            ifs_pacifique_est: { path: 'output/ifs_pacifique_est', name: 'ECMWF IFS Pacifique Est & Hawaï', badge: '0,25°' },
+            ifs_ocean_indien_nord: { path: 'output/ifs_ocean_indien_nord', name: 'ECMWF IFS Bengale & Mer d\'Arabie', badge: '0,25°' },
             aifs: { path: 'output/aifs', name: 'ECMWF AIFS Europe', badge: '0,25°' },
             aifs_france: { path: 'output/aifs_france', name: 'ECMWF AIFS France', badge: '0,25°' },
             aifs_antilles: { path: 'output/aifs_antilles', name: 'ECMWF AIFS Arc Antillais', badge: '0,25°' },
@@ -4360,6 +4369,10 @@
                 gfs_france: { eu: 'gfs', fr: 'gfs_france', ant: 'gfs_antilles', usa: 'gfs_etats_unis' },
                 gfs_antilles: { eu: 'gfs', fr: 'gfs_france', ant: 'gfs_antilles', usa: 'gfs_etats_unis' },
                 gfs_etats_unis: { eu: 'gfs', fr: 'gfs_france', ant: 'gfs_antilles', usa: 'gfs_etats_unis' },
+                ifs: { eu: 'ifs', fr: 'ifs_france', ant: 'ifs_antilles', usa: 'ifs_etats_unis' },
+                ifs_france: { eu: 'ifs', fr: 'ifs_france', ant: 'ifs_antilles', usa: 'ifs_etats_unis' },
+                ifs_antilles: { eu: 'ifs', fr: 'ifs_france', ant: 'ifs_antilles', usa: 'ifs_etats_unis' },
+                ifs_etats_unis: { eu: 'ifs', fr: 'ifs_france', ant: 'ifs_antilles', usa: 'ifs_etats_unis' },
                 aifs: { eu: 'aifs', fr: 'aifs_france', ant: 'aifs_antilles', usa: 'aifs_etats_unis' },
                 aifs_france: { eu: 'aifs', fr: 'aifs_france', ant: 'aifs_antilles', usa: 'aifs_etats_unis' },
                 aifs_antilles: { eu: 'aifs', fr: 'aifs_france', ant: 'aifs_antilles', usa: 'aifs_etats_unis' },
@@ -4373,16 +4386,17 @@
                 // Détermination du modèle cible
                 var family = 'gfs';
                 if (currentModel && currentModel.indexOf('aifs') !== -1) family = 'aifs';
+                else if (currentModel && currentModel.indexOf('ifs') !== -1) family = 'ifs';
                 else if (currentModel && currentModel.indexOf('arpege') !== -1) family = 'arpege';
                 else if (currentModel && currentModel.indexOf('icon') !== -1) family = 'icon_eu';
 
                 var targetModel = 'gfs';
                 if (cfg.isDomain === 'fr') {
-                    targetModel = (family === 'aifs') ? 'aifs_france' : ((family === 'arpege') ? 'arpege_france' : 'gfs_france');
+                    targetModel = (family === 'aifs') ? 'aifs_france' : ((family === 'ifs') ? 'ifs_france' : ((family === 'arpege') ? 'arpege_france' : 'gfs_france'));
                 } else if (cfg.isDomain === 'eu') {
-                    targetModel = (family === 'aifs') ? 'aifs' : ((family === 'arpege') ? 'arpege' : 'gfs');
+                    targetModel = (family === 'aifs') ? 'aifs' : ((family === 'ifs') ? 'ifs' : ((family === 'arpege') ? 'arpege' : 'gfs'));
                 } else {
-                    targetModel = (family === 'aifs' ? 'aifs_' : 'gfs_') + cfg.isDomain;
+                    targetModel = (family === 'aifs' ? 'aifs_' : (family === 'ifs' ? 'ifs_' : 'gfs_')) + cfg.isDomain;
                 }
 
                 if (cfg.reset) {
@@ -4465,6 +4479,15 @@
                 arpege_france: { path: 'output/arpege_france', name: 'ARPEGE France', badge: '0,1°' },
                 icon_eu: { path: 'output/icon_eu', name: 'ICON-EU Europe', badge: '7 km' },
                 icon_eu_france: { path: 'output/icon_eu_france', name: 'ICON-EU France', badge: '7 km' },
+                ifs: { path: 'output/ifs', name: 'ECMWF IFS Europe', badge: '0,25°' },
+                ifs_france: { path: 'output/ifs_france', name: 'ECMWF IFS France', badge: '0,25°' },
+                ifs_antilles: { path: 'output/ifs_antilles', name: 'ECMWF IFS Arc Antillais', badge: '0,25°' },
+                ifs_etats_unis: { path: 'output/ifs_etats_unis', name: 'ECMWF IFS États-Unis', badge: '0,25°' },
+                ifs_ocean_indien: { path: 'output/ifs_ocean_indien', name: 'ECMWF IFS Océan Indien Sud-Ouest', badge: '0,25°' },
+                ifs_pacifique_ouest: { path: 'output/ifs_pacifique_ouest', name: 'ECMWF IFS Pacifique Ouest / Typhons', badge: '0,25°' },
+                ifs_pacifique_sud: { path: 'output/ifs_pacifique_sud', name: 'ECMWF IFS Pacifique Sud & Océanie', badge: '0,25°' },
+                ifs_pacifique_est: { path: 'output/ifs_pacifique_est', name: 'ECMWF IFS Pacifique Est & Hawaï', badge: '0,25°' },
+                ifs_ocean_indien_nord: { path: 'output/ifs_ocean_indien_nord', name: 'ECMWF IFS Bengale & Mer d\'Arabie', badge: '0,25°' },
                 aifs: { path: 'output/aifs', name: 'ECMWF AIFS Europe', badge: '0,25°' },
                 aifs_france: { path: 'output/aifs_france', name: 'ECMWF AIFS France', badge: '0,25°' },
                 aifs_antilles: { path: 'output/aifs_antilles', name: 'ECMWF AIFS Arc Antillais', badge: '0,25°' },
@@ -4654,6 +4677,14 @@
                     if (loading) loading.hidden = true;
                     if (token !== switchToken) return;
                     console.error('[switchModel] Erreur chargement manifeste', target.path, err);
+                    if (modelKey.indexOf('ifs_') === 0) {
+                        var gfsFallback = 'gfs_' + modelKey.substring(4);
+                        console.warn('[switchModel] Modèle IFS non disponible, bascule sur', gfsFallback);
+                        showError('Modèle ' + target.name + ' en cours de génération — bascule sur GFS.');
+                        window.setTimeout(function() { clearError(); }, 4000);
+                        switchModel(gfsFallback);
+                        return;
+                    }
                     if (modelKey.indexOf('aifs_') === 0) {
                         var gfsFallback = 'gfs_' + modelKey.substring(5);
                         console.warn('[switchModel] Modèle AIFS non disponible, bascule sur', gfsFallback);

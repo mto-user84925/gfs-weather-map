@@ -1,0 +1,214 @@
+name: "IFS — Build & Deploy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'full = régénère les données ; front = déploie le code seul'
+        required: false
+        default: 'full'
+      max_hours:
+        description: 'Échéance max en heures (défaut 360, 15 jours)'
+        required: false
+        default: '360'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: "ifs-build"
+  cancel-in-progress: true
+
+jobs:
+  build-fond:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      mode: ${{ steps.vars.outputs.mode }}
+      max_hours: ${{ steps.vars.outputs.max_hours }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-
+      - name: Dépendances Python
+        run: pip install -r requirements.txt -q
+      - name: Validation + export des variables
+        id: vars
+        run: |
+          MODE="${{ inputs.mode || 'full' }}"
+          MAX_HOURS="${{ inputs.max_hours || '360' }}"
+          if ! [[ "$MAX_HOURS" =~ ^[0-9]+$ ]] || [ "$MAX_HOURS" -lt 3 ] || [ "$MAX_HOURS" -gt 360 ]; then
+            echo "::error::max_hours invalide: '$MAX_HOURS' (attendu 3-360)"
+            exit 1
+          fi
+          echo "mode=$MODE"           >> "$GITHUB_OUTPUT"
+          echo "max_hours=$MAX_HOURS" >> "$GITHUB_OUTPUT"
+      - name: Générer les fonds (Europe + France)
+        if: steps.vars.outputs.mode != 'front'
+        run: |
+          python -u pipeline/generate_fond_gfs.py --domain europe
+          python -u pipeline/generate_fond_gfs.py --domain france
+      - name: Upload fonds (artefact partagé)
+        if: steps.vars.outputs.mode != 'front'
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-fonds
+          path: output/
+          retention-days: 1
+
+  render-chunks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: build-fond
+    if: needs.build-fond.outputs.mode != 'front'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ifs-00-36
+            lead_min: 0
+            lead_max: 36
+          - id: ifs-39-72
+            lead_min: 39
+            lead_max: 72
+          - id: ifs-75-108
+            lead_min: 75
+            lead_max: 108
+          - id: ifs-111-144
+            lead_min: 111
+            lead_max: 144
+          - id: ifs-150-240
+            lead_min: 150
+            lead_max: 240
+          - id: ifs-252-360
+            lead_min: 252
+            lead_max: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: pip-
+      - name: Dépendances système + Python
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libeccodes0 libeccodes-tools
+          pip install -r requirements.txt -q
+      - name: Pipeline (${{ matrix.id }})
+        run: |
+          MAX_HOURS="${{ needs.build-fond.outputs.max_hours }}"
+          if [ "${{ matrix.lead_min }}" -gt "$MAX_HOURS" ]; then
+            echo "Tranche hors limite ($MAX_HOURS h) — ignoré"
+            exit 0
+          fi
+          python -u pipeline/ifs_open_data.py \
+            --max-hours "$MAX_HOURS" \
+            --domain both \
+            --lead-min "${{ matrix.lead_min }}" \
+            --lead-max "${{ matrix.lead_max }}"
+      - name: Upload chunk (${{ matrix.id }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: chunk-${{ matrix.id }}
+          path: output/
+          retention-days: 1
+
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [build-fond, render-chunks]
+    if: always() && (needs.render-chunks.result == 'success' || needs.build-fond.outputs.mode == 'front')
+    concurrency:
+      group: "pages"
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Dépendances Python
+        run: pip install -r requirements.txt -q
+      - name: Base du dernier déploiement (préserve les autres modèles)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p /tmp/base
+          RESTORED=""
+          for RUN_ID in $(gh run list --repo mto-user84925/gfs-weather-map \
+                --status success --limit 20 --json databaseId,workflowName --jq \
+                '.[] | select(.workflowName | test("Build & Deploy")) | .databaseId' 2>/dev/null || true); do
+            if gh run download "$RUN_ID" --repo mto-user84925/gfs-weather-map \
+                 -n github-pages -D /tmp/base >/dev/null 2>&1; then
+              if tar -tf /tmp/base/artifact.tar 2>/dev/null | grep -q "output/"; then
+                RESTORED="$RUN_ID"
+                break
+              fi
+              rm -rf /tmp/base
+              mkdir -p /tmp/base
+            fi
+          done
+          if [ -z "$RESTORED" ]; then
+            echo "::error::Aucun artefact github-pages météo récent à restaurer"
+            exit 1
+          fi
+          mkdir -p /tmp/base/restored
+          tar -xf /tmp/base/artifact.tar -C /tmp/base/restored
+          cp -r /tmp/base/restored/output ./
+          echo "Base restaurée depuis le run $RESTORED (output/ fusionné, code du repo conservé)"
+      - name: Purge des répertoires régénérés (évite les dalles obsolètes)
+        run: |
+          rm -rf output/ifs output/ifs_france
+          echo "Répertoires IFS purgés (seront recréés par les chunks)"
+      - name: Téléchargement des chunks IFS
+        uses: actions/download-artifact@v4
+        with:
+          pattern: chunk-*
+          path: output/
+          merge-multiple: true
+          if-no-files-found: ignore
+      - name: Génération des fonds et frontières universels
+        run: |
+          python -u pipeline/generate_fond_gfs.py --domain europe
+          python -u pipeline/generate_fond_gfs.py --domain france
+      - name: Assemblage des manifests index.json
+        run: python -u pipeline/assemble.py
+      - name: Préparation du site statique
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp extremes.html _site/ 2>/dev/null || true
+          cp logo*.png _site/ 2>/dev/null || true
+          cp cyclones_actifs.json _site/ 2>/dev/null || true
+          cp output/cyclones_actifs.json _site/ 2>/dev/null || true
+          cp alertes_extremes_monde.json _site/ 2>/dev/null || true
+          cp output/alertes_extremes_monde.json _site/ 2>/dev/null || true
+          touch _site/.nojekyll
+          cp -r js _site/
+          cp -r config _site/ 2>/dev/null || true
+          cp -r output _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+      - name: Déploiement sur GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
