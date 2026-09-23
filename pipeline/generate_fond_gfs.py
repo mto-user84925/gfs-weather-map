@@ -82,32 +82,33 @@ def generate(domain):
     if domain == "europe":
         out_dirs = [
             os.path.join(BASE_DIR, "output", m, "maps")
-            for m in ("gfs", "arpege", "aifs", "icon_eu")
+            for m in ("gfs", "arpege", "aifs", "icon_eu", "ifs")
         ]
     elif domain == "antilles":
         out_dirs = [
             os.path.join(BASE_DIR, "output", m, "maps")
-            for m in ("gfs_antilles", "aifs_antilles")
+            for m in ("gfs_antilles", "aifs_antilles", "ifs_antilles")
         ]
     elif domain == "etats_unis":
         out_dirs = [
             os.path.join(BASE_DIR, "output", m, "maps")
-            for m in ("gfs_etats_unis", "aifs_etats_unis")
+            for m in ("gfs_etats_unis", "aifs_etats_unis", "ifs_etats_unis")
         ]
     elif domain == "ocean_indien":
         out_dirs = [
             os.path.join(BASE_DIR, "output", m, "maps")
-            for m in ("gfs_ocean_indien", "aifs_ocean_indien")
+            for m in ("gfs_ocean_indien", "aifs_ocean_indien", "ifs_ocean_indien")
         ]
     elif domain in ("pacifique_ouest", "pacifique_sud", "pacifique_est", "ocean_indien_nord"):
         out_dirs = [
             os.path.join(BASE_DIR, "output", f"gfs_{domain}", "maps"),
-            os.path.join(BASE_DIR, "output", f"aifs_{domain}", "maps")
+            os.path.join(BASE_DIR, "output", f"aifs_{domain}", "maps"),
+            os.path.join(BASE_DIR, "output", f"ifs_{domain}", "maps")
         ]
     else:
         out_dirs = [
             os.path.join(BASE_DIR, "output", m, "maps")
-            for m in ("gfs_france", "arpege_france", "aifs_france", "icon_eu_france")
+            for m in ("gfs_france", "arpege_france", "aifs_france", "icon_eu_france", "ifs_france")
         ]
     for d in out_dirs:
         os.makedirs(d, exist_ok=True)

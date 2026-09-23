@@ -428,26 +428,26 @@ def render_domain(all_fields, run_dt, domain, out_dir, model_label, resolution,
     return n_ok
 
 
-def warmup_domain(run_dt, prior_leads, dom_obj):
+def make_init_state(prior_field, dom_obj):
+    # ponytail: Sur ECMWF AIFS, 'tp' (APCP) est déjà le cumul complet de pluie depuis H+0.
+    # Seule l'échéance immédiatement précédente (prior[-1]) est requise pour calculer la pluie
+    # horaire de la 1ère dalle (apcp - prev) et initialiser max_gust. Le re-téléchargement
+    # de 50 GRIBs antérieurs prenait >60min et causait des timeouts GHA.
+    if not prior_field:
+        return None
     state_warm = {"max_gust": None, "cum_precip": None}
-    for lh in prior_leads:
-        try:
-            f = collect_lead(run_dt, lh)
-            gust = f.get("GUST")
-            apcp = f.get("APCP")
-            if gust is not None:
-                val, lat, lon = gust
-                g = dom_obj.regrid(val * 3.6, lat, lon)
-                if g is not None:
-                    state_warm["max_gust"] = (g if state_warm["max_gust"] is None
-                                              else np.maximum(state_warm["max_gust"], g))
-            if apcp is not None:
-                val, lat, lon = apcp
-                a = dom_obj.regrid(val, lat, lon)
-                if a is not None:
-                    state_warm["cum_precip"] = a
-        except Exception as e:
-            log("  échauffement H+%03d ignoré (%s)" % (lh, e))
+    gust = prior_field.get("GUST")
+    apcp = prior_field.get("APCP")
+    if gust is not None:
+        val, lat, lon = gust
+        g = dom_obj.regrid(val * 3.6, lat, lon)
+        if g is not None:
+            state_warm["max_gust"] = g
+    if apcp is not None:
+        val, lat, lon = apcp
+        a = dom_obj.regrid(val, lat, lon)
+        if a is not None:
+            state_warm["cum_precip"] = a
     return state_warm
 
 
@@ -463,6 +463,13 @@ def run_all(max_hours=MAX_LEAD, domain="europe", lead_min=0, lead_max=None):
         return
 
     prior = [lh for lh in all_leads if lh < lead_min]
+    prior_field = None
+    if prior:
+        try:
+            prior_field = collect_lead(run_dt, prior[-1])
+            log(f"  échauffement H+{prior[-1]:03d} chargé (1 échéance)")
+        except Exception as e:
+            log(f"  échauffement H+{prior[-1]:03d} ignoré ({e})")
 
     all_fields = {}
     for lh in chunk_leads:
@@ -478,56 +485,56 @@ def run_all(max_hours=MAX_LEAD, domain="europe", lead_min=0, lead_max=None):
                       os.path.join(base, "aifs", "maps"),
                       "ECMWF AIFS 0.25° Europe", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, EUROPE) if prior else None)
+                      init_state=make_init_state(prior_field, EUROPE))
     if domain in ("both", "france"):
         render_domain(all_fields, run_dt, FRANCE,
                       os.path.join(base, "aifs_france", "maps"),
                       "ECMWF AIFS 0.25° France", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, FRANCE) if prior else None)
+                      init_state=make_init_state(prior_field, FRANCE))
     # ── domaines mondiaux (ajout pur, sans modifier europe/france) ───────────
     if domain in ("world", "antilles"):
         render_domain(all_fields, run_dt, ANTILLES,
                       os.path.join(base, "aifs_antilles", "maps"),
                       "ECMWF AIFS 0.25° Arc Antillais", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, ANTILLES) if prior else None)
+                      init_state=make_init_state(prior_field, ANTILLES))
     if domain in ("world", "etats_unis"):
         render_domain(all_fields, run_dt, ETATS_UNIS,
                       os.path.join(base, "aifs_etats_unis", "maps"),
                       "ECMWF AIFS 0.25° États-Unis", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, ETATS_UNIS) if prior else None)
+                      init_state=make_init_state(prior_field, ETATS_UNIS))
     if domain in ("world", "pacifique_est"):
         render_domain(all_fields, run_dt, PACIFIQUE_EST,
                       os.path.join(base, "aifs_pacifique_est", "maps"),
                       "ECMWF AIFS 0.25° Pacifique Est", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, PACIFIQUE_EST) if prior else None)
+                      init_state=make_init_state(prior_field, PACIFIQUE_EST))
     if domain in ("world", "pacifique_ouest"):
         render_domain(all_fields, run_dt, PACIFIQUE_OUEST,
                       os.path.join(base, "aifs_pacifique_ouest", "maps"),
                       "ECMWF AIFS 0.25° Pacifique Ouest", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, PACIFIQUE_OUEST) if prior else None)
+                      init_state=make_init_state(prior_field, PACIFIQUE_OUEST))
     if domain in ("world", "ocean_indien_nord"):
         render_domain(all_fields, run_dt, OCEAN_INDIEN_NORD,
                       os.path.join(base, "aifs_ocean_indien_nord", "maps"),
                       "ECMWF AIFS 0.25° Océan Indien Nord", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, OCEAN_INDIEN_NORD) if prior else None)
+                      init_state=make_init_state(prior_field, OCEAN_INDIEN_NORD))
     if domain in ("world", "ocean_indien"):
         render_domain(all_fields, run_dt, OCEAN_INDIEN,
                       os.path.join(base, "aifs_ocean_indien", "maps"),
                       "ECMWF AIFS 0.25° Océan Indien", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, OCEAN_INDIEN) if prior else None)
+                      init_state=make_init_state(prior_field, OCEAN_INDIEN))
     if domain in ("world", "pacifique_sud"):
         render_domain(all_fields, run_dt, PACIFIQUE_SUD,
                       os.path.join(base, "aifs_pacifique_sud", "maps"),
                       "ECMWF AIFS 0.25° Pacifique Sud", "0.25° (~25 km)",
                       lead_min=lead_min, lead_max=lead_max,
-                      init_state=warmup_domain(run_dt, prior, PACIFIQUE_SUD) if prior else None)
+                      init_state=make_init_state(prior_field, PACIFIQUE_SUD))
     print("[AIFS] Pipeline terminé avec succès.", flush=True)
 
 

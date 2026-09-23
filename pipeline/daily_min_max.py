@@ -227,10 +227,12 @@ def main():
         "icon_eu_france",
         "gfs_france",
         "aifs_france",
+        "ifs_france",
         "gfs",
         "arpege",
         "icon_eu",
-        "aifs"
+        "aifs",
+        "ifs"
     ]
     with ThreadPoolExecutor(max_workers=4) as executor:
         executor.map(process_model_min_max, models)
