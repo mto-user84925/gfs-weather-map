@@ -1226,17 +1226,19 @@
                     context.save();
                     context.transform(hScale, 0, 0, vScale, offX, offY);
 
-                    // ponytail: tracé vectoriel direct haute fidélité.
-                    // L'épaisseur sur l'image finale est calibrée à 3.0px constants (divisée par hScale)
-                    // pour éliminer radicalement les lignes trop épaisses lors des zooms régionaux.
+                    // Tracé vectoriel broadcast pour l'image exportée / téléchargée
+                    // Sur France entière ou domaine global : 9.0px / hScale (équivalent strict des 7.5px natifs avec scale 1.23, net et puissant style TV)
+                    // Sur zoom régional : 7.5px / hScale (rendu similaire pour les régions : affirmé, puissant et net sans boudinage)
+                    var isZoomedExport = (transform && transform.scale > 1.08);
+                    var exportLineWidth = isZoomedExport ? 7.5 : 9.0;
                     context.lineCap = 'round';
                     context.lineJoin = 'round';
                     context.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                    context.shadowBlur = 4.0 / hScale;
-                    context.shadowOffsetX = 1.5 / hScale;
-                    context.shadowOffsetY = 1.5 / hScale;
+                    context.shadowBlur = (isZoomedExport ? 12.0 : 15.0) / hScale;
+                    context.shadowOffsetX = (isZoomedExport ? 3.5 : 4.0) / hScale;
+                    context.shadowOffsetY = (isZoomedExport ? 3.5 : 4.0) / hScale;
                     context.strokeStyle = '#ffffff';
-                    context.lineWidth = 3.0 / hScale;
+                    context.lineWidth = exportLineWidth / hScale;
 
                     for (var li = 0; li < exportFrontsData.lines.length; li++) {
                         var line = exportFrontsData.lines[li];
@@ -1638,6 +1640,11 @@
                                 var bw = Math.max(180, tw + padX * 2);
                                 var bh = curFontSize + padY * 2;
                                 var rad = 14;
+
+                                // Protection bord d'image : élimine les cartouches tronqués aux bords en zoom régional
+                                if (bx - bw / 2 < 14 || bx + bw / 2 > output.width - 14 || by - bh / 2 < 14 || by + bh / 2 > output.height - 14) {
+                                    continue;
+                                }
 
                                 // Protection anti-collision avec le titre, le logo ou la légende
                                 var bRect = { left: bx - bw / 2 - 6, right: bx + bw / 2 + 6, top: by - bh / 2 - 6, bottom: by + bh / 2 + 6 };
@@ -5764,17 +5771,19 @@
                     thresholds = [5, 15, 30, 50, 75, 100];
                 } else {
                     stepSize = 25;
-                    thresholds = [10, 25, 50, 75, 100, 150];
+                    thresholds = [10, 25, 50, 75, 100, 125, 150];
                 }
                 thresholds = thresholds.filter(function (t) { return t <= pMax - 0.4; });
             } else if (isWind) {
-                // Isotaches broadcast françaises (rafales en km/h)
-                stepSize = (range > 70) ? 15 : 10;
-                var firstTh = Math.max(30, Math.ceil((pMin + 5) / stepSize) * stepSize);
-                for (var th = firstTh; th <= pMax - 3; th += stepSize) {
+                // ponytail: Isotaches broadcast françaises harmonisées comme les températures
+                // Découpage progressif (10, 20, 30... ou 15, 30, 45...) couvrant tout le gradient national
+                stepSize = (range > 80) ? 20 : ((range > 45) ? 15 : 10);
+                var minTh = (pMax > 80) ? 30 : ((pMax > 55) ? 20 : 10);
+                var firstTh = Math.max(minTh, Math.ceil((pMin + 1.0) / stepSize) * stepSize);
+                for (var th = firstTh; th <= pMax - stepSize * 0.35; th += stepSize) {
                     thresholds.push(th);
                 }
-                if (thresholds.length === 0 && pMax >= 30) {
+                if (thresholds.length === 0 && pMax >= 15) {
                     thresholds.push(Math.round(pMax - 5));
                 }
             } else {
@@ -5832,8 +5841,8 @@
                                 if (cy > 0) { var n = cidx - gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                                 if (cy < gh - 1) { var n = cidx + gw; if (valid[n] && smoothed[n] >= tLow && smoothed[n] < tHigh && compLabels[n] === 0) { compLabels[n] = curLbl; q.push(n); } }
                             }
-                            // ponytail: seuil de taille adapté pour ne jamais éliminer les plaines chaudes étroites (Nîmes, Basse vallée du Rhône)
-                            var minCompSize = (hasMax || bi === bands.length - 1) ? 2 : 4;
+                            // ponytail: seuil de taille adapté pour ne jamais éliminer les poches pluvieuses et plaines étroites
+                            var minCompSize = (hasMax || bi === bands.length - 1 || isRain) ? 2 : 3;
                             if (q.length >= minCompSize) {
                                 components.push({
                                     label: curLbl,
@@ -5886,8 +5895,8 @@
                         }
                     }
 
-                    // 1 pôle garanti pour chaque zone, plus un second uniquement pour les très grandes zones
-                    var maxPoles = cSize > 250 ? 2 : 1;
+                    // ponytail: Cartouches broadcast équilibrés : 1 à 2 pôles maximum par zone pour éviter la répétition
+                    var maxPoles = (compInfo.containsMax || compInfo.containsMin) ? 1 : Math.min(2, Math.max(1, Math.ceil(cSize / 80)));
                     for (var pi = 0; pi < maxPoles; pi++) {
                         var maxD = 0, maxIdx = -1;
                         for (var f = 0; f < gw * gh; f++) {
@@ -5897,7 +5906,7 @@
                             }
                         }
                         // Si pôle d'inaccessibilité faible mais zone contenant l'extrême national, utiliser l'emplacement du pic
-                        if (maxD < 0.35 || maxIdx === -1) {
+                        if (maxD < 0.25 || maxIdx === -1) {
                             if (compInfo.containsMax && maxGridIdx !== -1 && compLabels[maxGridIdx] === curLbl) {
                                 maxIdx = maxGridIdx;
                                 maxD = 1.0;
@@ -5940,7 +5949,7 @@
                                 label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' °C';
                             }
                         } else if (isRain) {
-                            if (medVal < 0.8 && !compInfo.containsMax) continue; // Pas de cartouche superflu 0 mm sur zones sèches
+                            if (medVal < 1.2 && !compInfo.containsMax) continue; // Pas de cartouche superflu 0 mm sur zones sèches
                             if (band.type === 'min') {
                                 label = '< ' + Math.round(band.high) + ' mm';
                             } else if (band.type === 'max') {
@@ -5952,7 +5961,10 @@
                             }
                         } else if (isWind) {
                             if (band.type === 'min') {
-                                label = '< ' + Math.round(band.high) + ' km/h';
+                                var s0 = Math.floor(medVal / stepSize) * stepSize;
+                                var s1 = s0 + stepSize;
+                                if (s1 > Math.round(band.high)) { s1 = Math.round(band.high); s0 = Math.max(0, s1 - stepSize); }
+                                label = (s0 <= 0 ? ('< ' + s1) : (s0 + ' à ' + s1)) + ' km/h';
                             } else if (band.type === 'max') {
                                 var w0 = Math.round(band.low);
                                 var w1 = Math.round(Math.max(medVal, band.low + stepSize));
@@ -5995,12 +6007,80 @@
                             compSize: cSize
                         });
 
-                        // Rayon d'exclusion intra-composante (8 pixels pour un espacement harmonieux)
-                        for (var ey = Math.max(0, py - 8); ey <= Math.min(gh - 1, py + 8); ey++) {
-                            for (var ex = Math.max(0, px - 8); ex <= Math.min(gw - 1, px + 8); ex++) {
+                        // Rayon d'exclusion intra-composante (espacer largement les pôles au sein d'une même bande)
+                        for (var ey = Math.max(0, py - 12); ey <= Math.min(gh - 1, py + 12); ey++) {
+                            for (var ex = Math.max(0, px - 18); ex <= Math.min(gw - 1, px + 18); ex++) {
                                 var edx = ex - px, edy = ey - py;
-                                if (edx * edx + edy * edy <= 64) {
+                                if ((edx * edx) / 324.0 + (edy * edy) / 144.0 <= 1.0) {
                                     dist[ey * gw + ex] = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Détection des sommets et cuvettes locales fermées (bullseyes isolés comme Albi, Rodez, poches pluvieuses)
+            if (isFranceDomain) {
+                var sRadExt = 3;
+                for (var ey = sRadExt; ey < gh - sRadExt; ey++) {
+                    for (var ex = sRadExt; ex < gw - sRadExt; ex++) {
+                        var eidx = ey * gw + ex;
+                        if (!valid[eidx]) continue;
+                        var extVal = smoothed[eidx];
+                        if (isRain && extVal < 1.0) continue;
+                        var isLocalPeak = true;
+                        var isLocalValley = true;
+                        for (var ddy = -sRadExt; ddy <= sRadExt; ddy++) {
+                            for (var ddx = -sRadExt; ddx <= sRadExt; ddx++) {
+                                if (ddx === 0 && ddy === 0) continue;
+                                if (ddx * ddx + ddy * ddy > sRadExt * sRadExt) continue;
+                                var nnidx = (ey + ddy) * gw + (ex + ddx);
+                                if (valid[nnidx]) {
+                                    var nnv = smoothed[nnidx];
+                                    if (nnv >= extVal) isLocalPeak = false;
+                                    if (nnv <= extVal) isLocalValley = false;
+                                }
+                            }
+                        }
+                        if ((isRain || isWind) && isLocalValley) isLocalValley = false;
+                        if (isLocalPeak || isLocalValley) {
+                            var diffProminence = 0;
+                            for (var ddy = -sRadExt; ddy <= sRadExt; ddy++) {
+                                for (var ddx = -sRadExt; ddx <= sRadExt; ddx++) {
+                                    if (ddx * ddx + ddy * ddy === sRadExt * sRadExt) {
+                                        var nnidx = (ey + ddy) * gw + (ex + ddx);
+                                        if (valid[nnidx]) diffProminence = Math.max(diffProminence, Math.abs(extVal - smoothed[nnidx]));
+                                    }
+                                }
+                            }
+                            if (diffProminence >= (isRain ? 20 : (isTemp ? 2.0 : 12))) {
+                                var pLabel = '';
+                                for (var bi = 0; bi < bands.length; bi++) {
+                                    var bnd = bands[bi];
+                                    if (extVal >= bnd.low && extVal < bnd.high) {
+                                        if (isTemp) {
+                                            pLabel = (bnd.type === 'min' ? ('< ' + Math.round(bnd.high)) : (bnd.type === 'max' ? ('> ' + Math.round(bnd.low)) : (Math.round(bnd.low) + ' à ' + Math.round(bnd.high)))) + ' °C';
+                                        } else if (isRain) {
+                                            pLabel = (bnd.type === 'min' ? ('< ' + Math.round(bnd.high)) : (bnd.type === 'max' ? ('> ' + Math.round(bnd.low)) : (Math.round(bnd.low) + ' à ' + Math.round(bnd.high)))) + ' mm';
+                                        } else if (isWind) {
+                                            pLabel = (bnd.type === 'min' ? ('< ' + Math.round(bnd.high)) : (bnd.type === 'max' ? ('> ' + Math.round(bnd.low)) : (Math.round(bnd.low) + ' à ' + Math.round(bnd.high)))) + ' km/h';
+                                        }
+                                        break;
+                                    }
+                                }
+                                if (pLabel) {
+                                    badges.push({
+                                        u: ex / (gw - 1),
+                                        v: ey / (gh - 1),
+                                        label: pLabel,
+                                        clearance: 12.0,
+                                        isBretagne: false,
+                                        isHotspot: false,
+                                        isColdspot: false,
+                                        compId: 88800 + ey * gw + ex,
+                                        compSize: 20
+                                    });
                                 }
                             }
                         }
@@ -6035,20 +6115,37 @@
                 coveredComps.add(filteredBadges[0].compId);
             }
 
-            // Passe 1 : Garantir un cartouche central pour chaque zone
+            var labelCounts = {};
+            for (var fi = 0; fi < filteredBadges.length; fi++) {
+                var lbl = filteredBadges[fi].label;
+                labelCounts[lbl] = (labelCounts[lbl] || 0) + 1;
+            }
+
+            // Passe 1 : Garantir un cartouche central pour chaque zone distincte
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
                 if (coveredComps.has(candidate.compId)) continue;
+
+                // ponytail: limitation équilibrée par type de libellé :
+                // - Cartouche de seuil minimal (< X mm ou < X km/h) : jusqu'à 3 sur le pays (ex: Bretagne, Picardie, Lorraine)
+                // - Cartouches de paliers intermédiaires : jusqu'à 5 sur le pays si bien espacés géographiquement
+                var isMinLabel = candidate.label.indexOf('<') === 0;
+                var maxAllowed = isMinLabel ? 3 : 5;
+                if ((labelCounts[candidate.label] || 0) >= maxAllowed && !(candidate.isHotspot && candidate.compId === 99999)) {
+                    continue;
+                }
 
                 var tooClose = false;
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    // ponytail: les cartouches TV sont des rectangles allongés (~5:1).
-                    // Distance elliptique (7 px horizontal, 3.2 px vertical)
-                    // pour permettre la coexistence naturelle Nord-Sud (ex: Massif Central et Plaine de Nîmes) sans chevauchement.
-                    var isSame = (candidate.label === filteredBadges[fi].label);
-                    var normDist = (du * du) / (isSame ? 160.0 : 49.0) + (dv * dv) / (isSame ? 40.0 : 10.24);
+                    var sameComp = (candidate.compId === filteredBadges[fi].compId);
+                    var isSameLabel = (candidate.label === filteredBadges[fi].label);
+                    var normDist = isSameLabel
+                        ? ((du * du) / 200.0 + (dv * dv) / 50.0)
+                        : (sameComp
+                            ? ((du * du) / 40.0 + (dv * dv) / 10.0)
+                            : ((du * du) / 25.0 + (dv * dv) / 6.5));
                     if (normDist < 1.0) {
                         if (candidate.isHotspot) {
                             // Le pôle maximal national évince tout badge secondaire concurrent
@@ -6063,26 +6160,36 @@
                 if (!tooClose) {
                     filteredBadges.push(candidate);
                     coveredComps.add(candidate.compId);
+                    labelCounts[candidate.label] = (labelCounts[candidate.label] || 0) + 1;
                 }
             }
 
-            // Passe 2 : Ajouter un second cartouche UNIQUEMENT pour les zones géantes très espacées (> 300 km)
+            // Passe 2 : Ajouter des cartouches secondaires pour les zones étendues bien espacées
             for (var bi = 0; bi < otherBadges.length; bi++) {
                 var candidate = otherBadges[bi];
                 if (filteredBadges.indexOf(candidate) !== -1) continue;
+
+                var isMinLabel = candidate.label.indexOf('<') === 0;
+                var maxAllowed = isMinLabel ? 3 : 5;
+                if ((labelCounts[candidate.label] || 0) >= maxAllowed) continue;
 
                 var tooClose = false;
                 for (var fi = 0; fi < filteredBadges.length; fi++) {
                     var du = (candidate.u - filteredBadges[fi].u) * gw;
                     var dv = (candidate.v - filteredBadges[fi].v) * gh;
-                    var isSame = (candidate.label === filteredBadges[fi].label);
-                    var normDist = (du * du) / (isSame ? 256.0 : 49.0) + (dv * dv) / (isSame ? 64.0 : 10.24);
+                    var isSameLabel = (candidate.label === filteredBadges[fi].label);
+                    var normDist = isSameLabel
+                        ? ((du * du) / 256.0 + (dv * dv) / 64.0)
+                        : ((du * du) / 36.0 + (dv * dv) / 9.0);
                     if (normDist < 1.0) {
                         tooClose = true;
                         break;
                     }
                 }
-                if (!tooClose) filteredBadges.push(candidate);
+                if (!tooClose) {
+                    filteredBadges.push(candidate);
+                    labelCounts[candidate.label] = (labelCounts[candidate.label] || 0) + 1;
+                }
             }
 
             // ponytail: Garantie absolue TV météo : le pôle maximal de France (ex: Nîmes / PACA)
@@ -6127,7 +6234,7 @@
                 }
             }
 
-            badges = filteredBadges.slice(0, 16);
+            badges = filteredBadges.slice(0, 36);
 
             function interpolate(v1, v2, th) {
                 if (Math.abs(v2 - v1) < 1e-6) return 0.5;
@@ -6181,8 +6288,8 @@
                     // ponytail: seuils calibrés selon la nature physique :
                     // les précipitations et couloirs de vent sont localisés (pluie convective, vallées),
                     // tandis que les masses d'air thermiques traversent le pays entier.
-                    var minLen = isRain ? 4 : (isWind ? 6 : 18);
-                    var minSpan = isRain ? 2 : (isWind ? 4 : 12);
+                    var minLen = isRain ? 5 : (isWind ? 8 : 18);
+                    var minSpan = isRain ? 3 : (isWind ? 5 : 12);
                     if (poly.length < minLen) continue;
                     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                     for (var ptI = 0; ptI < poly.length; ptI++) {
@@ -6227,6 +6334,7 @@
             var natH = isWorldDomain() ? 1320.0 : 1640.0;
             var horizontalScale = mapRect.w / 2200.0;
             var verticalScale = mapRect.h / natH;
+            var zoomFactor = Math.max(1.0, (transform && transform.scale) ? transform.scale : 1.0);
 
             frontsContext.save();
             frontsContext.beginPath();
@@ -6242,17 +6350,18 @@
                 pixelRatio * mapRect.y
             );
 
-            // 1. Tracé vectoriel direct des lignes blanches TV (épaisseur constante à l'écran)
-            // ponytail: tracé direct dans frontsContext. Avec lineWidth = 2.8 / horizontalScale,
-            // l'épaisseur affichée à l'écran est TOUJOURS exactement de 2.8px, quelle que soit la région zoomée.
+            // 1. Tracé vectoriel direct des lignes blanches TV
+            // Sur France entière (zoomFactor <= 1.05), épaisseur broadcast affirmée (7.5px à l'écran).
+            // Sur zoom régional, rendu similaire puissant et net (6.5px à l'écran).
+            var screenLineWidth = (zoomFactor <= 1.05) ? 7.5 : 6.5;
             frontsContext.lineCap = 'round';
             frontsContext.lineJoin = 'round';
             frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
-            frontsContext.shadowBlur = 3.5 / horizontalScale;
-            frontsContext.shadowOffsetX = 1.2 / horizontalScale;
-            frontsContext.shadowOffsetY = 1.2 / horizontalScale;
+            frontsContext.shadowBlur = (zoomFactor <= 1.05 ? 12.0 : 10.0) / horizontalScale;
+            frontsContext.shadowOffsetX = (zoomFactor <= 1.05 ? 3.5 : 3.0) / horizontalScale;
+            frontsContext.shadowOffsetY = (zoomFactor <= 1.05 ? 3.5 : 3.0) / horizontalScale;
             frontsContext.strokeStyle = '#ffffff';
-            frontsContext.lineWidth = 2.8 / horizontalScale;
+            frontsContext.lineWidth = screenLineWidth / horizontalScale;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
@@ -6315,6 +6424,7 @@
                     } catch (eC) {}
                 }
 
+                var occupied = [];
                 for (var bi = 0; bi < allBadges.length; bi++) {
                     var badge = allBadges[bi];
                     var bx = badge.u * 2200.0;
@@ -6324,6 +6434,21 @@
                         // ponytail: dimensions ajustées équilibrées (~28% plus compactes que géantes, nettes et lisibles)
                         var radius = Math.round(58 / zoomFactor);
                         var discColor = (badge.actionType === 'D') ? '#0284c7' : '#dc2626';
+
+                        var scBx = bx * horizontalScale + mapRect.x;
+                        var scBy = by * verticalScale + mapRect.y;
+                        var scR = radius * horizontalScale;
+                        var bRect = { left: scBx - scR - 6, right: scBx + scR + 6, top: scBy - scR - 6, bottom: scBy + scR + 35 * verticalScale + 6 };
+                        var clash = false;
+                        for (var oi = 0; oi < occupied.length; oi++) {
+                            var occ = occupied[oi];
+                            if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                clash = true;
+                                break;
+                            }
+                        }
+                        if (clash) continue;
+                        occupied.push(bRect);
 
                         // 1. Disque circulaire coloré (ombre portée + bord blanc épais)
                         frontsContext.save();
@@ -6393,6 +6518,28 @@
                         var bw = Math.max(160 / zoomFactor, tw + padX * 2);
                         var bh = fontSize + padY * 2;
                         var rad = 12 / zoomFactor;
+
+                        // Protection bord d'écran : élimine les cartouches tronqués aux bords en zoom régional
+                        var scBx = bx * horizontalScale + mapRect.x;
+                        var scBy = by * verticalScale + mapRect.y;
+                        var scBw = bw * horizontalScale;
+                        var scBh = bh * verticalScale;
+                        if (scBx - scBw / 2 < 8 || scBx + scBw / 2 > width - 8 || scBy - scBh / 2 < 8 || scBy + scBh / 2 > height - 8) {
+                            continue;
+                        }
+
+                        // Protection anti-collision entre cartouches à l'écran
+                        var bRect = { left: scBx - scBw / 2 - 4, right: scBx + scBw / 2 + 4, top: scBy - scBh / 2 - 4, bottom: scBy + scBh / 2 + 4 };
+                        var clash = false;
+                        for (var oi = 0; oi < occupied.length; oi++) {
+                            var occ = occupied[oi];
+                            if (bRect.left < occ.right && bRect.right > occ.left && bRect.top < occ.bottom && bRect.bottom > occ.top) {
+                                clash = true;
+                                break;
+                            }
+                        }
+                        if (clash) continue;
+                        occupied.push(bRect);
 
                         frontsContext.fillStyle = 'rgba(19, 23, 34, 0.94)';
                         frontsContext.strokeStyle = '#ffffff';
@@ -6467,7 +6614,7 @@
         function isEuropeDomain() {
             if (!currentModel) return false;
             if (currentModel.indexOf('_france') !== -1 || isWorldDomain()) return false;
-            return (currentModel === 'gfs' || currentModel === 'arpege' || currentModel === 'icon_eu' || currentModel === 'aifs');
+            return (currentModel === 'gfs' || currentModel === 'arpege' || currentModel === 'icon_eu' || currentModel === 'aifs' || currentModel === 'ifs');
         }
 
         function isWorldDomain(model) {
