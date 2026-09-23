@@ -98,7 +98,7 @@ def _file_url(run_dt, lead):
                run_dt.strftime("%Y%m%d%H%M%S"), lead))
 
 
-def _fetch(url, retries=3):
+def _fetch(url, retries=6):
     last = None
     for attempt in range(1, retries + 1):
         try:
@@ -107,10 +107,16 @@ def _fetch(url, retries=3):
                 return r.content
             if r.status_code == 404:
                 raise RuntimeError("404 introuvable: %s" % url)
+            if r.status_code == 429:
+                wait_sec = int(r.headers.get("Retry-After", 10 * attempt))
+                log("  Rate limit 429 reçu de data.ecmwf.int, attente %ds (essai %d/%d)..."
+                    % (wait_sec, attempt, retries))
+                time.sleep(wait_sec)
+                continue
             last = "HTTP %s" % r.status_code
         except Exception as e:
             last = "%s" % e
-        time.sleep(2 * attempt)
+        time.sleep(3 * attempt)
     raise RuntimeError("Téléchargement %s impossible (%s)" % (url, last))
 
 
@@ -348,7 +354,9 @@ def render_lead_par(fields, lead, run_dt, domain, out_dir):
 
     apcp = fields.get("APCP")
     if apcp is not None:
-        a = regrid(apcp)  # tp = cumul depuis le début du run
+        # ponytail: Sur ECMWF AIFS, 'tp' (Total Precipitation) est en mètres (m) dans le GRIB2.
+        # Multiplication par 1000 obligatoire pour convertir en millimètres (mm).
+        a = regrid(apcp, lambda v: v * 1000.0)
         if a is not None:
             apcp_g = a
 
@@ -364,13 +372,18 @@ def _save_cumulative(out_dir, name, data, lead, step):
     step["probes"][name] = "maps/values/%s/%03d.hkv.gz" % (name, lead)
 
 
-def _apply_cumulative(state, out_dir, lead, step, gust_g, apcp_g):
+def _apply_cumulative(state, out_dir, lead, step, gust_g, apcp_g, domain):
     if gust_g is not None:
         if state.get("max_gust") is None:
             state["max_gust"] = gust_g.copy()
         else:
             state["max_gust"] = np.maximum(state["max_gust"], gust_g)
         _save_cumulative(out_dir, "rafales_cumul", state["max_gust"], lead, step)
+    elif lead == 0:
+        zero_g = np.zeros((domain.height, domain.width), dtype=np.float32)
+        state["max_gust"] = zero_g
+        _save_cumulative(out_dir, "rafales_cumul", zero_g, lead, step)
+
     if apcp_g is not None:
         prev = state.get("tp_prev")
         if prev is not None:
@@ -382,7 +395,7 @@ def _apply_cumulative(state, out_dir, lead, step, gust_g, apcp_g):
         state["tp_prev"] = apcp_g
         _save_cumulative(out_dir, "pluie_cumul", apcp_g, lead, step)
     elif lead == 0:
-        zero_p = np.zeros((EUROPE.height, EUROPE.width), dtype=np.float32)
+        zero_p = np.zeros((domain.height, domain.width), dtype=np.float32)
         _save_cumulative(out_dir, "pluie_1h", zero_p, lead, step)
         _save_cumulative(out_dir, "pluie_cumul", zero_p, lead, step)
         state["tp_prev"] = zero_p
@@ -409,7 +422,7 @@ def render_domain(all_fields, run_dt, domain, out_dir, model_label, resolution,
     for lh in leads:
         step, gust_g, apcp_g = render_lead_par(all_fields[lh], lh, run_dt,
                                                domain, out_dir)
-        _apply_cumulative(state, out_dir, lh, step, gust_g, apcp_g)
+        _apply_cumulative(state, out_dir, lh, step, gust_g, apcp_g, domain)
         steps.append(step)
         n_ok += 1
         log("  H+%03d OK (%d couches)" % (lh, len(step["files"])))
@@ -445,7 +458,7 @@ def make_init_state(prior_field, dom_obj):
             state_warm["max_gust"] = g
     if apcp is not None:
         val, lat, lon = apcp
-        a = dom_obj.regrid(val, lat, lon)
+        a = dom_obj.regrid(val * 1000.0, lat, lon)
         if a is not None:
             state_warm["cum_precip"] = a
     return state_warm

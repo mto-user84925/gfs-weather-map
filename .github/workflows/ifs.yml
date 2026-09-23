@@ -73,6 +73,7 @@ jobs:
     if: needs.build-fond.outputs.mode != 'front'
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         include:
           - id: ifs-00-36
