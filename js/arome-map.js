@@ -257,6 +257,7 @@
         window._renderTiktokCardToCanvas = function() { return renderTiktokCardToCanvas.apply(null, arguments); };
         window._getCurrentProbe = function() { return currentProbe; };
         window._getPeriodCompositeCanvas = function() { return periodCompositeCanvas; };
+        window._computePeriodComposite = function() { return computePeriodComposite.apply(null, arguments); };
         var franceMaskImage = new Image();
         franceMaskImage.crossOrigin = 'anonymous';
         franceMaskImage.src = resolvePath('maps/mask_france.png');
@@ -3585,8 +3586,12 @@
             renderStep(currentStep);
         }
 
+        var pendingPeriodCompute = false;
         function computeAndDisplayPeriodComposite() {
-            if (isPeriodComputing) return;
+            if (isPeriodComputing) {
+                pendingPeriodCompute = true;
+                return;
+            }
             isPeriodComputing = true;
             if (loading) loading.hidden = false;
             setToolHint('Calcul de la synthèse cartographique en cours…');
@@ -3594,6 +3599,11 @@
             computePeriodComposite(periodParam, periodStartDay, periodEndDay).then(function(compRes) {
                 isPeriodComputing = false;
                 if (loading) loading.hidden = true;
+                if (pendingPeriodCompute) {
+                    pendingPeriodCompute = false;
+                    computeAndDisplayPeriodComposite();
+                    return;
+                }
                 isPeriodMode = true;
                 currentPeriodInfo = compRes;
                 periodCompositeCanvas = compRes.canvas;
@@ -3638,6 +3648,11 @@
             }).catch(function(err) {
                 isPeriodComputing = false;
                 if (loading) loading.hidden = true;
+                if (pendingPeriodCompute) {
+                    pendingPeriodCompute = false;
+                    computeAndDisplayPeriodComposite();
+                    return;
+                }
                 console.error('Erreur synthèse période:', err);
                 setToolHint('Erreur lors du calcul de la synthèse.');
             });
@@ -5435,7 +5450,8 @@
                 }
             }
 
-            var key = (sampleImg.src || '') + '_' + sampleLayerKey + (maskImg ? '_m' : '');
+            var canvasKey = sampleImg._frontsId || (sampleImg._frontsId = 'c_' + Date.now() + '_' + Math.random());
+            var key = (sampleImg.src || canvasKey) + '_' + sampleLayerKey + (maskImg ? '_m' : '');
             if (cachedFrontsKey === key && cachedFrontsData) {
                 return cachedFrontsData;
             }
@@ -5509,7 +5525,13 @@
                 return cachedFrontsData;
             }
 
-            // Lissage gaussien macro broadcast renforcé (sigma ~ 2.8, rayon 3)
+            // Lissage gaussien macro broadcast :
+            // Pour la pluie (phénomène intermittent avec frontières nettes sol sec / pluie),
+            // rayon compact (1) et préservation stricte des cœurs pluvieux sans dilution à zéro.
+            // Pour température et vent, rayon 3 adapté aux grands champs continus.
+            var sRad = isRain ? 1 : 3;
+            var sSigma = isRain ? 1.0 : 2.8;
+            var twoSigmaSq = 2 * sSigma * sSigma;
             var smoothed = new Float32Array(gw * gh);
             for (var y = 0; y < gh; y++) {
                 for (var x = 0; x < gw; x++) {
@@ -5518,16 +5540,21 @@
                         smoothed[fidx] = field[fidx];
                         continue;
                     }
+                    if (isRain && field[fidx] <= 0.05) {
+                        smoothed[fidx] = 0;
+                        continue;
+                    }
                     var sum = 0, weight = 0;
-                    for (var dy = -3; dy <= 3; dy++) {
+                    for (var dy = -sRad; dy <= sRad; dy++) {
                         var ny = y + dy;
                         if (ny < 0 || ny >= gh) continue;
-                        for (var dx = -3; dx <= 3; dx++) {
+                        for (var dx = -sRad; dx <= sRad; dx++) {
                             var nx = x + dx;
                             if (nx < 0 || nx >= gw) continue;
                             var nidx = ny * gw + nx;
                             if (valid[nidx]) {
-                                var w = Math.exp(-(dx * dx + dy * dy) / (2 * 2.8 * 2.8));
+                                if (isRain && field[nidx] <= 0.05) continue;
+                                var w = Math.exp(-(dx * dx + dy * dy) / twoSigmaSq);
                                 sum += field[nidx] * w;
                                 weight += w;
                             }
@@ -5557,9 +5584,20 @@
             validVals.sort(function (a, b) { return a - b; });
             var pMin = validVals[Math.floor(validVals.length * (isTemp ? 0.01 : 0.04))];
             var pMax = validVals[Math.floor(validVals.length * (isTemp ? 0.99 : 0.96))];
+            // ponytail: inclusion impérative des maxima réels pour TOUS les paramètres (température, vent, pluie)
+            // pour ne jamais amputer les épisodes pluvieux localisés ou les couloirs de rafales
             if (isTemp) {
                 if (maxGridVal > pMax) pMax = Math.max(pMax, maxGridVal - 0.2);
                 if (minGridVal < pMin) pMin = Math.min(pMin, minGridVal + 0.2);
+            } else if (isWind) {
+                if (maxGridVal > pMax) pMax = maxGridVal;
+                if (minGridVal < pMin) pMin = Math.max(0, minGridVal);
+            } else if (isRain) {
+                if (maxGridVal > pMax) pMax = maxGridVal;
+                pMin = 0;
+            } else {
+                if (maxGridVal > pMax) pMax = maxGridVal;
+                if (minGridVal < pMin) pMin = minGridVal;
             }
             if (pMax <= pMin) pMax = pMin + 1;
 
@@ -5684,22 +5722,55 @@
             // pour qu'aucune ligne ne sépare deux cartouches identiques
             var range = pMax - pMin;
             var stepSize = 2;
+            var thresholds = [];
             if (isTemp) {
                 stepSize = range > 24 ? 4 : 2;
+                var firstTh = Math.ceil((pMin + stepSize * 0.5) / stepSize) * stepSize;
+                for (var th = firstTh; th <= pMax - stepSize * 0.4; th += stepSize) {
+                    thresholds.push(th);
+                }
             } else if (isRain) {
-                stepSize = range > 80 ? 20 : (range > 30 ? 10 : (range > 10 ? 5 : 2));
+                // Isohyètes broadcast françaises (seuils ronds calibrés sur le cumul max)
+                if (pMax < 1.0) {
+                    thresholds = [];
+                } else if (pMax <= 6.0) {
+                    stepSize = 1;
+                    thresholds = [1, 2, 4];
+                } else if (pMax <= 15.0) {
+                    stepSize = 2;
+                    thresholds = [2, 5, 10];
+                } else if (pMax <= 35.0) {
+                    stepSize = 5;
+                    thresholds = [2, 5, 10, 20];
+                } else if (pMax <= 70.0) {
+                    stepSize = 10;
+                    thresholds = [5, 10, 20, 35, 50];
+                } else if (pMax <= 120.0) {
+                    stepSize = 15;
+                    thresholds = [5, 15, 30, 50, 75, 100];
+                } else {
+                    stepSize = 25;
+                    thresholds = [10, 25, 50, 75, 100, 150];
+                }
+                thresholds = thresholds.filter(function (t) { return t <= pMax - 0.4; });
             } else if (isWind) {
-                stepSize = range > 80 ? 20 : (range > 40 ? 15 : 10);
+                // Isotaches broadcast françaises (rafales en km/h)
+                stepSize = (range > 70) ? 15 : 10;
+                var firstTh = Math.max(30, Math.ceil((pMin + 5) / stepSize) * stepSize);
+                for (var th = firstTh; th <= pMax - 3; th += stepSize) {
+                    thresholds.push(th);
+                }
+                if (thresholds.length === 0 && pMax >= 30) {
+                    thresholds.push(Math.round(pMax - 5));
+                }
             } else {
                 stepSize = Math.max(1, Math.round(range / 5));
+                var firstTh = Math.ceil((pMin + stepSize * 0.5) / stepSize) * stepSize;
+                for (var th = firstTh; th <= pMax - stepSize * 0.4; th += stepSize) {
+                    thresholds.push(th);
+                }
             }
-
-            var firstTh = Math.ceil((pMin + stepSize * 0.5) / stepSize) * stepSize;
-            var thresholds = [];
-            for (var th = firstTh; th <= pMax - stepSize * 0.4; th += stepSize) {
-                thresholds.push(th);
-            }
-            if (thresholds.length === 0) {
+            if (thresholds.length === 0 && pMax > pMin) {
                 thresholds.push(Math.round((pMin + pMax) / 2));
             }
 
@@ -5856,13 +5927,25 @@
                             }
                         } else if (isRain) {
                             if (medVal < 0.8 && !compInfo.containsMax) continue; // Pas de cartouche superflu 0 mm sur zones sèches
-                            var r0 = Math.max(0, Math.floor(medVal / stepSize) * stepSize);
-                            var r1 = r0 + stepSize;
-                            label = (medVal < 1 ? '< 1 mm' : (r0 === 0 ? '< ' + stepSize + ' mm' : (r0 + ' à ' + r1 + ' mm')));
+                            if (band.type === 'min') {
+                                label = '< ' + Math.round(band.high) + ' mm';
+                            } else if (band.type === 'max') {
+                                var r0 = Math.round(band.low);
+                                var r1 = Math.round(Math.max(medVal, band.low + stepSize));
+                                label = (r1 > r0 ? (r0 + ' à ' + r1) : ('> ' + r0)) + ' mm';
+                            } else {
+                                label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' mm';
+                            }
                         } else if (isWind) {
-                            var w0 = Math.floor(medVal / stepSize) * stepSize;
-                            var w1 = w0 + stepSize;
-                            label = w0 + ' à ' + w1 + ' km/h';
+                            if (band.type === 'min') {
+                                label = '< ' + Math.round(band.high) + ' km/h';
+                            } else if (band.type === 'max') {
+                                var w0 = Math.round(band.low);
+                                var w1 = Math.round(Math.max(medVal, band.low + stepSize));
+                                label = (w1 > w0 ? (w0 + ' à ' + w1) : ('> ' + w0)) + ' km/h';
+                            } else {
+                                label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' km/h';
+                            }
                         } else if (layerKey.indexOf('neige') !== -1) {
                             var n0 = Math.floor(medVal / 5) * 5;
                             var n1 = n0 + 5;
@@ -5990,17 +6073,29 @@
 
             // ponytail: Garantie absolue TV météo : le pôle maximal de France (ex: Nîmes / PACA)
             // DOIT TOUJOURS avoir son cartouche visible sur la carte
-            if (isTemp && maxGridIdx !== -1) {
+            if ((isTemp || isWind || (isRain && maxGridVal >= 1.5)) && maxGridIdx !== -1) {
                 var hasHotspot = filteredBadges.some(function (b) { return b.isHotspot; });
                 if (!hasHotspot) {
                     var hx = maxGridIdx % gw;
                     var hy = Math.floor(maxGridIdx / gw);
-                    var s0 = Math.floor(maxGridVal / stepSize) * stepSize;
-                    var s1 = s0 + stepSize;
+                    var hotLabel = '';
+                    if (isTemp) {
+                        var s0 = Math.floor(maxGridVal / stepSize) * stepSize;
+                        var s1 = s0 + stepSize;
+                        hotLabel = s0 + ' à ' + s1 + ' °C';
+                    } else if (isRain) {
+                        var r0 = Math.floor(maxGridVal / stepSize) * stepSize;
+                        var r1 = r0 + stepSize;
+                        hotLabel = (r0 === 0 ? '< ' + stepSize : (r0 + ' à ' + r1)) + ' mm';
+                    } else if (isWind) {
+                        var w0 = Math.floor(maxGridVal / stepSize) * stepSize;
+                        var w1 = w0 + stepSize;
+                        hotLabel = w0 + ' à ' + w1 + ' km/h';
+                    }
                     var hotBadge = {
                         u: hx / (gw - 1),
                         v: (hy > 54 ? hy : Math.max(2, hy - 1.0)) / (gh - 1),
-                        label: s0 + ' à ' + s1 + ' °C',
+                        label: hotLabel,
                         clearance: 99,
                         isBretagne: false,
                         isHotspot: true,
@@ -6069,7 +6164,12 @@
                 var polys = chainFrontSegments(segments);
                 for (var pi = 0; pi < polys.length; pi++) {
                     var poly = polys[pi];
-                    if (poly.length < 20) continue;
+                    // ponytail: seuils calibrés selon la nature physique :
+                    // les précipitations et couloirs de vent sont localisés (pluie convective, vallées),
+                    // tandis que les masses d'air thermiques traversent le pays entier.
+                    var minLen = isRain ? 4 : (isWind ? 6 : 18);
+                    var minSpan = isRain ? 2 : (isWind ? 4 : 12);
+                    if (poly.length < minLen) continue;
                     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                     for (var ptI = 0; ptI < poly.length; ptI++) {
                         var pt = poly[ptI];
@@ -6078,7 +6178,7 @@
                         if (pt[1] < minY) minY = pt[1];
                         if (pt[1] > maxY) maxY = pt[1];
                     }
-                    if (Math.max(maxX - minX, maxY - minY) < 15) continue;
+                    if (Math.max(maxX - minX, maxY - minY) < minSpan) continue;
                     var smoothPoly = chaikinFrontSmooth(poly, 4);
                     var normPts = [];
                     for (var si = 0; si < smoothPoly.length; si++) {
