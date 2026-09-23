@@ -1223,12 +1223,12 @@
                     var fCtx = fCan.getContext('2d');
                     fCtx.lineCap = 'round';
                     fCtx.lineJoin = 'round';
-                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                    fCtx.shadowBlur = 12;
-                    fCtx.shadowOffsetX = 3.5;
-                    fCtx.shadowOffsetY = 3.5;
+                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.80)';
+                    fCtx.shadowBlur = 8;
+                    fCtx.shadowOffsetX = 2.5;
+                    fCtx.shadowOffsetY = 2.5;
                     fCtx.strokeStyle = '#ffffff';
-                    fCtx.lineWidth = 7.5;
+                    fCtx.lineWidth = 4.5;
 
                     for (var li = 0; li < exportFrontsData.lines.length; li++) {
                         var line = exportFrontsData.lines[li];
@@ -2564,7 +2564,7 @@
                 compCtx.drawImage(cCanvas, -150, 0, 2200, 1640); // Corse décalée de -150px
                 compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
 
-                // 4. Lignes TV broadcast épaisses (11px)
+                // 4. Lignes TV broadcast (7px sur master 2200px ≈ 3.4px effectif à 1080px)
                 if (includeFronts) {
                     frontsData = computeTvFrontsData(img, layerKey, assets.maskMainland);
                     if (frontsData && frontsData.lines && frontsData.lines.length) {
@@ -2574,12 +2574,12 @@
                         var fCtx = fCanvas.getContext('2d');
                         fCtx.lineCap = 'round';
                         fCtx.lineJoin = 'round';
-                        fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-                        fCtx.shadowBlur = 14;
-                        fCtx.shadowOffsetX = 4;
-                        fCtx.shadowOffsetY = 4;
+                        fCtx.shadowColor = 'rgba(0, 0, 0, 0.80)';
+                        fCtx.shadowBlur = 9;
+                        fCtx.shadowOffsetX = 2.5;
+                        fCtx.shadowOffsetY = 2.5;
                         fCtx.strokeStyle = '#ffffff';
-                        fCtx.lineWidth = 11;
+                        fCtx.lineWidth = 7;
 
                         for (var li = 0; li < frontsData.lines.length; li++) {
                             var line = frontsData.lines[li];
@@ -6228,10 +6228,10 @@
                 pixelRatio * mapRect.y
             );
 
-            // 1. Tracé des lignes blanches TV BIEN ÉPAISSES
+            // 1. Tracé des lignes blanches TV (épaisseur affinée pour vue nationale et régionale)
             // ponytail: on travaille dans l'espace natif 2200px.
-            // zoomFactor compense le zoom régional pour garder une épaisseur constante à l'écran (Option 1).
-            // Sur France entière (scale <= 1), zoomFactor = 1.0 -> rendu 100% identique et intact.
+            // zoomFactor compense le zoom régional pour garder une épaisseur constante à l'écran.
+            // Sur France entière (scale <= 1), zoomFactor = 1.0 -> rendu intact.
             var zoomFactor = Math.max(1.0, (transform && transform.scale) ? transform.scale : 1.0);
 
             var fCan = document.createElement('canvas');
@@ -6240,12 +6240,12 @@
             var fCtx = fCan.getContext('2d');
             fCtx.lineCap = 'round';
             fCtx.lineJoin = 'round';
-            fCtx.shadowColor = 'rgba(0, 0, 0, 0.85)';
-            fCtx.shadowBlur = 12 / zoomFactor;
-            fCtx.shadowOffsetX = 3.5 / zoomFactor;
-            fCtx.shadowOffsetY = 3.5 / zoomFactor;
+            fCtx.shadowColor = 'rgba(0, 0, 0, 0.80)';
+            fCtx.shadowBlur = 8 / zoomFactor;
+            fCtx.shadowOffsetX = 2.5 / zoomFactor;
+            fCtx.shadowOffsetY = 2.5 / zoomFactor;
             fCtx.strokeStyle = '#ffffff';
-            fCtx.lineWidth = 7.5 / zoomFactor;
+            fCtx.lineWidth = 4.5 / zoomFactor;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
