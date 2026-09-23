@@ -1226,44 +1226,27 @@
                     context.save();
                     context.transform(hScale, 0, 0, vScale, offX, offY);
 
-                    var fCan = document.createElement('canvas');
-                    fCan.width = 2200;
-                    fCan.height = natH;
-                    var fCtx = fCan.getContext('2d');
-                    fCtx.lineCap = 'round';
-                    fCtx.lineJoin = 'round';
-                    fCtx.shadowColor = 'rgba(0, 0, 0, 0.80)';
-                    fCtx.shadowBlur = 8;
-                    fCtx.shadowOffsetX = 2.5;
-                    fCtx.shadowOffsetY = 2.5;
-                    fCtx.strokeStyle = '#ffffff';
-                    fCtx.lineWidth = 4.5;
+                    // ponytail: tracé vectoriel direct haute fidélité.
+                    // L'épaisseur sur l'image finale est calibrée à 3.0px constants (divisée par hScale)
+                    // pour éliminer radicalement les lignes trop épaisses lors des zooms régionaux.
+                    context.lineCap = 'round';
+                    context.lineJoin = 'round';
+                    context.shadowColor = 'rgba(0, 0, 0, 0.85)';
+                    context.shadowBlur = 4.0 / hScale;
+                    context.shadowOffsetX = 1.5 / hScale;
+                    context.shadowOffsetY = 1.5 / hScale;
+                    context.strokeStyle = '#ffffff';
+                    context.lineWidth = 3.0 / hScale;
 
                     for (var li = 0; li < exportFrontsData.lines.length; li++) {
                         var line = exportFrontsData.lines[li];
                         if (line.length < 2) continue;
-                        fCtx.beginPath();
-                        fCtx.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
+                        context.beginPath();
+                        context.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
                         for (var pi = 1; pi < line.length; pi++) {
-                            fCtx.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
+                            context.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
                         }
-                        fCtx.stroke();
-                    }
-
-                    // Sur la France : masquer les lignes blanches pour ne jamais couper la Corse
-                    var isFranceDomain = (currentModel.indexOf('_france') !== -1) || (manifest && manifest.bounds && manifest.bounds.projection === 'mercator');
-                    var mainlandMask = (typeof tiktokAssets !== 'undefined' && tiktokAssets && tiktokAssets.maskMainland) ? tiktokAssets.maskMainland : null;
-                    if (isFranceDomain && mainlandMask && mainlandMask.naturalWidth) {
-                        var mfCan = document.createElement('canvas');
-                        mfCan.width = 2200;
-                        mfCan.height = natH;
-                        var mfCtx = mfCan.getContext('2d');
-                        mfCtx.drawImage(fCan, 0, 0);
-                        mfCtx.globalCompositeOperation = 'destination-in';
-                        mfCtx.drawImage(mainlandMask, 0, 0, 2200, natH);
-                        context.drawImage(mfCan, 0, 0);
-                    } else {
-                        context.drawImage(fCan, 0, 0);
+                        context.stroke();
                     }
 
                     context.restore();
@@ -6259,47 +6242,27 @@
                 pixelRatio * mapRect.y
             );
 
-            // 1. Tracé des lignes blanches TV (épaisseur affinée pour vue nationale et régionale)
-            // ponytail: on travaille dans l'espace natif 2200px.
-            // zoomFactor compense le zoom régional pour garder une épaisseur constante à l'écran.
-            // Sur France entière (scale <= 1), zoomFactor = 1.0 -> rendu intact.
-            var zoomFactor = Math.max(1.0, (transform && transform.scale) ? transform.scale : 1.0);
-
-            var fCan = document.createElement('canvas');
-            fCan.width = 2200;
-            fCan.height = natH;
-            var fCtx = fCan.getContext('2d');
-            fCtx.lineCap = 'round';
-            fCtx.lineJoin = 'round';
-            fCtx.shadowColor = 'rgba(0, 0, 0, 0.80)';
-            fCtx.shadowBlur = 8 / zoomFactor;
-            fCtx.shadowOffsetX = 2.5 / zoomFactor;
-            fCtx.shadowOffsetY = 2.5 / zoomFactor;
-            fCtx.strokeStyle = '#ffffff';
-            fCtx.lineWidth = 4.5 / zoomFactor;
+            // 1. Tracé vectoriel direct des lignes blanches TV (épaisseur constante à l'écran)
+            // ponytail: tracé direct dans frontsContext. Avec lineWidth = 2.8 / horizontalScale,
+            // l'épaisseur affichée à l'écran est TOUJOURS exactement de 2.8px, quelle que soit la région zoomée.
+            frontsContext.lineCap = 'round';
+            frontsContext.lineJoin = 'round';
+            frontsContext.shadowColor = 'rgba(0, 0, 0, 0.85)';
+            frontsContext.shadowBlur = 3.5 / horizontalScale;
+            frontsContext.shadowOffsetX = 1.2 / horizontalScale;
+            frontsContext.shadowOffsetY = 1.2 / horizontalScale;
+            frontsContext.strokeStyle = '#ffffff';
+            frontsContext.lineWidth = 2.8 / horizontalScale;
 
             for (var li = 0; li < frontsData.lines.length; li++) {
                 var line = frontsData.lines[li];
                 if (line.length < 2) continue;
-                fCtx.beginPath();
-                fCtx.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
+                frontsContext.beginPath();
+                frontsContext.moveTo(line[0][0] * 2200.0, line[0][1] * natH);
                 for (var pi = 1; pi < line.length; pi++) {
-                    fCtx.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
+                    frontsContext.lineTo(line[pi][0] * 2200.0, line[pi][1] * natH);
                 }
-                fCtx.stroke();
-            }
-
-            if (fMask && fMask.naturalWidth) {
-                var mfCan = document.createElement('canvas');
-                mfCan.width = 2200;
-                mfCan.height = natH;
-                var mfCtx = mfCan.getContext('2d');
-                mfCtx.drawImage(fCan, 0, 0);
-                mfCtx.globalCompositeOperation = 'destination-in';
-                mfCtx.drawImage(fMask, 0, 0, 2200, natH);
-                frontsContext.drawImage(mfCan, 0, 0);
-            } else {
-                frontsContext.drawImage(fCan, 0, 0);
+                frontsContext.stroke();
             }
 
             // 2. Tracer les cartouches de plages TV au cœur de chaque zone
