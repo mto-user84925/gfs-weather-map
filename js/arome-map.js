@@ -3261,6 +3261,7 @@
                 var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
                 var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'broadcast';
                 var includeValues = document.getElementById('tiktok-values-checkbox') ? document.getElementById('tiktok-values-checkbox').checked : true;
+                var includeFronts = document.getElementById('tiktok-fronts-checkbox') ? document.getElementById('tiktok-fronts-checkbox').checked : frontsVisible;
                 var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
                 var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
                 var runLabel = (manifest && manifest.run_time) ? ('Run ' + String(manifest.run_time).slice(11, 16) + 'Z') : '';
@@ -3331,6 +3332,7 @@
                             assets: assets,
                             tiktokStyle: tiktokStyle,
                             includeValues: includeValues,
+                            includeFronts: includeFronts,
                             layoutMode: layoutMode
                         });
 
@@ -3408,6 +3410,7 @@
                     var tiktokStyleRadio = document.querySelector('input[name="tiktok-style"]:checked');
                     var tiktokStyle = tiktokStyleRadio ? tiktokStyleRadio.value : 'broadcast';
                     var includeValues = document.getElementById('tiktok-values-checkbox') ? document.getElementById('tiktok-values-checkbox').checked : true;
+                    var includeFronts = document.getElementById('tiktok-fronts-checkbox') ? document.getElementById('tiktok-fronts-checkbox').checked : frontsVisible;
                     var layoutMode = document.getElementById('tiktok-layout-select') ? document.getElementById('tiktok-layout-select').value : 'bureau';
 
                     var modelTitle = (manifest && manifest.model_name) ? manifest.model_name : 'GFS France 0.25°';
@@ -3425,6 +3428,7 @@
                         assets: assets,
                         tiktokStyle: tiktokStyle,
                         includeValues: includeValues,
+                        includeFronts: includeFronts,
                         layoutMode: layoutMode
                     });
 
