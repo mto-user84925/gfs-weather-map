@@ -280,6 +280,13 @@
                    key.indexOf('temp') !== -1;
         }
 
+        function shouldLayerMaskSea(key) {
+            if (!key) return false;
+            var lk = key.toLowerCase();
+            if (lk === 'vagues' || lk === 'periode_vagues' || lk === 'houle') return false;
+            return true;
+        }
+
         function getAlphaMaskCanvas() {
             if (!maskSamplerReady || !maskSamplerCanvas || !maskSamplerContext) return null;
             if (alphaMaskCanvas && alphaMaskVersion === currentModel &&
@@ -319,7 +326,7 @@
         };
 
         function isLand(u, v) {
-            if (seaMode === 'none' || !isTemperatureLayer(currentLayer)) return true; // N'applique le masquage marin qu'aux températures
+            if (seaMode === 'none' || !shouldLayerMaskSea(currentLayer)) return true;
             if (!maskSamplerReady || !maskSamplerContext) return true;
             var px = Math.min(Math.max(0, Math.round(u * 2199)), 2199);
             var py = Math.min(Math.max(0, Math.round(v * 1639)), 1639);
@@ -1084,7 +1091,7 @@
             context.beginPath();
             context.rect(0, 0, outW, outH);
             context.clip();
-            var shouldMaskSea = (seaMode === 'land' && isTemperatureLayer(currentLayer));
+            var shouldMaskSea = (seaMode === 'land' && shouldLayerMaskSea(currentLayer));
             if (shouldMaskSea) {
                 context.save();
                 context.transform(hScale, 0, 0, vScale, offX, offY);
@@ -1129,7 +1136,7 @@
                 weatherCtx.save();
                 weatherCtx.transform(hScale, 0, 0, vScale, offX, offY);
                 weatherCtx.drawImage(activeImg, 0, 0);
-                if (seaMode === 'land' && isTemperatureLayer(currentLayer)) {
+                if (seaMode === 'land' && shouldLayerMaskSea(currentLayer)) {
                     var aMask = getAlphaMaskCanvas();
                     if (aMask) {
                         weatherCtx.globalCompositeOperation = 'destination-in';
@@ -1502,25 +1509,32 @@
                                 if (cPix[3] > 20) {
                                     var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
                                     if (cVal !== null && Number.isFinite(cVal)) {
-                                        var cLabel = '';
-                                        if (currentLayer.indexOf('temperature') !== -1) {
-                                            var c0 = Math.floor(cVal / 2) * 2;
-                                            var c1 = c0 + 2;
-                                            cLabel = c0 + ' à ' + c1 + ' °C';
-                                        } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
-                                            cLabel = Math.round(cVal) + ' mm';
-                                        } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
-                                            cLabel = Math.round(cVal) + ' km/h';
+                                        var isRainCorse = (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1);
+                                        if (isRainCorse && cVal < 0.8) {
+                                            // Pas de cartouche 0 mm sur la Corse sans pluie
                                         } else {
-                                            var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
-                                            cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                            var cLabel = '';
+                                            if (currentLayer.indexOf('temperature') !== -1) {
+                                                var c0 = Math.floor(cVal / 2) * 2;
+                                                var c1 = c0 + 2;
+                                                cLabel = c0 + ' à ' + c1 + ' °C';
+                                            } else if (isRainCorse) {
+                                                var cr0 = Math.max(0, Math.floor(cVal / 5) * 5);
+                                                cLabel = (cVal < 1 ? '< 1 mm' : (cr0 === 0 ? '< 5 mm' : (cr0 + ' à ' + (cr0 + 5) + ' mm')));
+                                            } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                                var cw0 = Math.floor(cVal / 10) * 10;
+                                                cLabel = cw0 + ' à ' + (cw0 + 10) + ' km/h';
+                                            } else {
+                                                var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                                cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                            }
+                                            allExportBadges.push({
+                                                u: 1700 / 2200.0,
+                                                v: 1310 / natH,
+                                                label: cLabel,
+                                                isCorse: true
+                                            });
                                         }
-                                        allExportBadges.push({
-                                            u: 1700 / 2200.0,
-                                            v: 1310 / natH,
-                                            label: cLabel,
-                                            isCorse: true
-                                        });
                                     }
                                 }
                             } catch (eCorseExp) {}
@@ -2544,7 +2558,7 @@
                 composeCanvas.width = 2200;
                 composeCanvas.height = 1640;
                 var compCtx = composeCanvas.getContext('2d');
-                compCtx.drawImage(assets.white, 0, 0, 2200, 1640);
+                // compCtx.drawImage(assets.white, 0, 0, 2200, 1640); // Fond transparent pour overlay TikTok
                 compCtx.drawImage(mCanvas, 0, 0, 2200, 1640);
                 compCtx.drawImage(cCanvas, -150, 0, 2200, 1640); // Corse décalée de -150px
                 compCtx.drawImage(assets.borders, 0, 0, 2200, 1640);
@@ -2591,13 +2605,12 @@
                 frontsData = computeTvFrontsData(img, layerKey, null);
             }
 
-            // 5. Cadrage et centrage sur canevas TikTok 1080×1920 avec fond sombre broadcast
+            // 5. Cadrage et centrage sur canevas TikTok 1080×1920 (fond 100% transparent pour incrustation vidéo)
             var ttCanvas = document.createElement('canvas');
             ttCanvas.width = 1080;
             ttCanvas.height = 1920;
             var ttCtx = ttCanvas.getContext('2d');
-            ttCtx.fillStyle = '#070b14';
-            ttCtx.fillRect(0, 0, 1080, 1920);
+            ttCtx.clearRect(0, 0, 1080, 1920);
 
             var cropX = 310, cropY = 173, cropW = 1395, cropH = 1282;
             var targetW = 1040;
@@ -2631,25 +2644,32 @@
                         if (cPix[3] > 20) {
                             var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(layerKey));
                             if (cVal !== null && Number.isFinite(cVal)) {
-                                var cLabel = '';
-                                if (layerKey.indexOf('temperature') !== -1) {
-                                    var c0 = Math.floor(cVal / 2) * 2;
-                                    var c1 = c0 + 2;
-                                    cLabel = c0 + ' à ' + c1 + ' °C';
-                                } else if (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precipitations') !== -1) {
-                                    cLabel = Math.round(cVal) + ' mm';
-                                } else if (layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafales') !== -1) {
-                                    cLabel = Math.round(cVal) + ' km/h';
+                                var isRainCorse = (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precipitations') !== -1);
+                                if (isRainCorse && cVal < 0.8) {
+                                    // Pas de cartouche 0 mm sur la Corse sans pluie
                                 } else {
-                                    var uName = (window.getLayerPalette && window.getLayerPalette(layerKey) && window.getLayerPalette(layerKey).unit) || '';
-                                    cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                    var cLabel = '';
+                                    if (layerKey.indexOf('temperature') !== -1) {
+                                        var c0 = Math.floor(cVal / 2) * 2;
+                                        var c1 = c0 + 2;
+                                        cLabel = c0 + ' à ' + c1 + ' °C';
+                                    } else if (isRainCorse) {
+                                        var cr0 = Math.max(0, Math.floor(cVal / 5) * 5);
+                                        cLabel = (cVal < 1 ? '< 1 mm' : (cr0 === 0 ? '< 5 mm' : (cr0 + ' à ' + (cr0 + 5) + ' mm')));
+                                    } else if (layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafales') !== -1) {
+                                        var cw0 = Math.floor(cVal / 10) * 10;
+                                        cLabel = cw0 + ' à ' + (cw0 + 10) + ' km/h';
+                                    } else {
+                                        var uName = (window.getLayerPalette && window.getLayerPalette(layerKey) && window.getLayerPalette(layerKey).unit) || '';
+                                        cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                    }
+                                    allBadgesToDraw.push({
+                                        u: 1710 / 2200,
+                                        v: 1310 / 1640,
+                                        label: cLabel,
+                                        isCorse: true
+                                    });
                                 }
-                                allBadgesToDraw.push({
-                                    u: 1710 / 2200,
-                                    v: 1310 / 1640,
-                                    label: cLabel,
-                                    isCorse: true
-                                });
                             }
                         }
                     } catch(eCorse) {}
@@ -2981,7 +3001,7 @@
                 }
 
                 var minCityVal = Infinity, maxCityVal = -Infinity;
-                if (isTemp && valsData.length > 0) {
+                if (valsData.length > 0) {
                     for (var i = 0; i < valsData.length; i++) {
                         if (valsData[i].val < minCityVal) minCityVal = valsData[i].val;
                         if (valsData[i].val > maxCityVal) maxCityVal = valsData[i].val;
@@ -3007,14 +3027,23 @@
                 ttCtx.shadowOffsetX = 0;
                 ttCtx.shadowOffsetY = 0;
 
+                var isRainL = (layerKey.indexOf('pluie') !== -1 || layerKey.indexOf('precip') !== -1);
+                var isWindL = (layerKey.indexOf('vent') !== -1 || layerKey.indexOf('rafale') !== -1);
+
                 for (var i = 0; i < valsData.length; i++) {
                     var v = valsData[i];
                     if (isTemp) {
-                        if (v.val === minCityVal) ttCtx.fillStyle = '#0078D7';
-                        else if (v.val === maxCityVal) ttCtx.fillStyle = '#E81123';
+                        if (v.val === minCityVal && minCityVal !== maxCityVal) ttCtx.fillStyle = '#0078D7';
+                        else if (v.val === maxCityVal && minCityVal !== maxCityVal) ttCtx.fillStyle = '#E81123';
+                        else ttCtx.fillStyle = '#000000';
+                    } else if (isWindL) {
+                        if (v.val === maxCityVal && maxCityVal > 0) ttCtx.fillStyle = '#E81123';
+                        else ttCtx.fillStyle = '#000000';
+                    } else if (isRainL) {
+                        if (v.val === maxCityVal && maxCityVal > 0) ttCtx.fillStyle = '#E81123';
                         else ttCtx.fillStyle = '#000000';
                     } else {
-                        ttCtx.fillStyle = '#ffffff';
+                        ttCtx.fillStyle = '#000000';
                     }
                     ttCtx.fillText(v.text, v.tx, v.ty);
                 }
@@ -4923,17 +4952,9 @@
                 ' vec3 seaBlue=vec3(0.11,0.26,0.50);\n' +
                 ' if(uHasFond>0.5){\n' +
                 '  vec3 fondColor=texture2D(uFond,uv).rgb;\n' +
-                '  if(uMaskSea>0.5){\n' +
-                '   base=mix(seaBlue,fondColor,smoothstep(0.02,0.4,land));\n' +
-                '  } else {\n' +
-                '   base=fondColor;\n' +
-                '  }\n' +
+                '  base=mix(seaBlue,fondColor,smoothstep(0.02,0.4,land));\n' +
                 ' } else if(uHasMask>0.5){\n' +
-                '  if(uMaskSea>0.5){\n' +
-                '   base=mix(seaBlue,vec3(0.76,0.78,0.81),smoothstep(0.02,0.4,land));\n' +
-                '  } else {\n' +
-                '   base=mix(vec3(0.6471,0.6510,0.6902),vec3(0.76,0.78,0.81),land);\n' +
-                '  }\n' +
+                '  base=mix(seaBlue,vec3(0.76,0.78,0.81),smoothstep(0.02,0.4,land));\n' +
                 ' }\n' +
                 ' if(uHasWeather<0.5){\n' +
                 '  gl_FragColor=vec4(base,1.0);return;\n' +
@@ -5108,7 +5129,7 @@
                 gl.uniform1i(webgl.fondSampler, 2);
                 gl.uniform1f(webgl.useFond, webgl.fondReady ? 1 : 0);
 
-                var shouldMaskSea = (seaMode === 'land' && isTemperatureLayer(currentLayer) && webgl.maskReady);
+                var shouldMaskSea = (seaMode === 'land' && shouldLayerMaskSea(currentLayer) && webgl.maskReady);
                 gl.uniform1f(webgl.maskSea, shouldMaskSea ? 1 : 0);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
                 return;
@@ -5134,7 +5155,7 @@
             var mrh = mapRect.h;
             fallbackContext.imageSmoothingEnabled = true;
             fallbackContext.imageSmoothingQuality = 'high';
-            var shouldMaskSea = (seaMode === 'land' && isTemperatureLayer(currentLayer));
+            var shouldMaskSea = (seaMode === 'land' && shouldLayerMaskSea(currentLayer));
             if (shouldMaskSea) {
                 fallbackContext.fillStyle = '#1c4280';
                 fallbackContext.fillRect(mrx, mry, mrw, mrh);
@@ -5666,9 +5687,9 @@
             if (isTemp) {
                 stepSize = range > 24 ? 4 : 2;
             } else if (isRain) {
-                stepSize = range > 80 ? 20 : (range > 30 ? 10 : 5);
+                stepSize = range > 80 ? 20 : (range > 30 ? 10 : (range > 10 ? 5 : 2));
             } else if (isWind) {
-                stepSize = 20;
+                stepSize = range > 80 ? 20 : (range > 40 ? 15 : 10);
             } else {
                 stepSize = Math.max(1, Math.round(range / 5));
             }
@@ -5834,12 +5855,13 @@
                                 label = Math.round(band.low) + ' à ' + Math.round(band.high) + ' °C';
                             }
                         } else if (isRain) {
-                            var r0 = Math.max(0, Math.floor(medVal / 10) * 10);
-                            var r1 = r0 + 10;
-                            label = (medVal < 1 ? '0 mm' : (r0 === 0 ? '< 10 mm' : (r0 + ' à ' + r1 + ' mm')));
+                            if (medVal < 0.8 && !compInfo.containsMax) continue; // Pas de cartouche superflu 0 mm sur zones sèches
+                            var r0 = Math.max(0, Math.floor(medVal / stepSize) * stepSize);
+                            var r1 = r0 + stepSize;
+                            label = (medVal < 1 ? '< 1 mm' : (r0 === 0 ? '< ' + stepSize + ' mm' : (r0 + ' à ' + r1 + ' mm')));
                         } else if (isWind) {
-                            var w0 = Math.floor(medVal / 20) * 20;
-                            var w1 = w0 + 20;
+                            var w0 = Math.floor(medVal / stepSize) * stepSize;
+                            var w1 = w0 + stepSize;
                             label = w0 + ' à ' + w1 + ' km/h';
                         } else if (layerKey.indexOf('neige') !== -1) {
                             var n0 = Math.floor(medVal / 5) * 5;
@@ -5928,7 +5950,8 @@
                     // ponytail: les cartouches TV sont des rectangles allongés (~5:1).
                     // Distance elliptique (7 px horizontal, 3.2 px vertical)
                     // pour permettre la coexistence naturelle Nord-Sud (ex: Massif Central et Plaine de Nîmes) sans chevauchement.
-                    var normDist = (du * du) / 49.0 + (dv * dv) / 10.24;
+                    var isSame = (candidate.label === filteredBadges[fi].label);
+                    var normDist = (du * du) / (isSame ? 160.0 : 49.0) + (dv * dv) / (isSame ? 40.0 : 10.24);
                     if (normDist < 1.0) {
                         if (candidate.isHotspot) {
                             // Le pôle maximal national évince tout badge secondaire concurrent
@@ -6168,24 +6191,31 @@
                         if (cPix[3] > 20) {
                             var cVal = valueFromColour(cPix[0], cPix[1], cPix[2], window.getLayerPalette(currentLayer));
                             if (cVal !== null && Number.isFinite(cVal)) {
-                                var cLabel = '';
-                                if (currentLayer.indexOf('temperature') !== -1) {
-                                    var c0 = Math.floor(cVal / 2) * 2;
-                                    var c1 = c0 + 2;
-                                    cLabel = c0 + ' à ' + c1 + ' °C';
-                                } else if (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1) {
-                                    cLabel = Math.round(cVal) + ' mm';
-                                } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
-                                    cLabel = Math.round(cVal) + ' km/h';
+                                var isRainCorse = (currentLayer.indexOf('pluie') !== -1 || currentLayer.indexOf('precipitations') !== -1);
+                                if (isRainCorse && cVal < 0.8) {
+                                    // Pas de cartouche 0 mm sur la Corse sans pluie
                                 } else {
-                                    var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
-                                    cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                    var cLabel = '';
+                                    if (currentLayer.indexOf('temperature') !== -1) {
+                                        var c0 = Math.floor(cVal / 2) * 2;
+                                        var c1 = c0 + 2;
+                                        cLabel = c0 + ' à ' + c1 + ' °C';
+                                    } else if (isRainCorse) {
+                                        var cr0 = Math.max(0, Math.floor(cVal / 5) * 5);
+                                        cLabel = (cVal < 1 ? '< 1 mm' : (cr0 === 0 ? '< 5 mm' : (cr0 + ' à ' + (cr0 + 5) + ' mm')));
+                                    } else if (currentLayer.indexOf('vent') !== -1 || currentLayer.indexOf('rafales') !== -1) {
+                                        var cw0 = Math.floor(cVal / 10) * 10;
+                                        cLabel = cw0 + ' à ' + (cw0 + 10) + ' km/h';
+                                    } else {
+                                        var uName = (window.getLayerPalette && window.getLayerPalette(currentLayer) && window.getLayerPalette(currentLayer).unit) || '';
+                                        cLabel = Math.round(cVal) + (uName ? (' ' + uName) : '°');
+                                    }
+                                    allBadges.push({
+                                        u: 1700 / 2200.0,
+                                        v: 1310 / natH,
+                                        label: cLabel
+                                    });
                                 }
-                                allBadges.push({
-                                    u: 1700 / 2200.0,
-                                    v: 1310 / natH,
-                                    label: cLabel
-                                });
                             }
                         }
                     } catch (eC) {}
@@ -7166,13 +7196,13 @@
                 if (val >= 90)  return '#ffea00'; // Fort coup de vent (dès 90 km/h)
                 return '#ffffff';
             }
-            if (layerKey === 'pluie_1h') {
-                if (val >= 30) return '#ff2a6d'; // Pluies diluviennes
-                if (val >= 20) return '#ff7b00'; // Très fortes pluies
-                if (val >= 10) return '#ffea00'; // Pluies soutenues (dès 10 mm/h)
-                return '#ffffff';
-            }
-            if (layerKey === 'pluie_cumul' || layerKey === 'precip') {
+            if (lk.indexOf('pluie') !== -1 || lk.indexOf('precip') !== -1) {
+                if (lk === 'pluie_1h') {
+                    if (val >= 30) return '#ff2a6d'; // Pluies diluviennes
+                    if (val >= 20) return '#ff7b00'; // Très fortes pluies
+                    if (val >= 10) return '#ffea00'; // Pluies soutenues (dès 10 mm/h)
+                    return '#ffffff';
+                }
                 if (val >= 80) return '#ff2a6d'; // Cumul exceptionnel
                 if (val >= 50) return '#ff7b00'; // Fort cumul
                 if (val >= 20) return '#ffea00'; // Cumul notable (dès 20 mm)
