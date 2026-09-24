@@ -79,7 +79,13 @@ def log(msg):
     print("[IFS] " + msg, flush=True)
 
 
+RUN_MATURITY = 6 * 3600 + 45 * 60  # 6h45 après l'heure du run (ECMWF Open Data)
+
+
 def latest_run(now=None):
+    # ponytail: Détection déterministe avec maturité opérationnelle ECMWF (6h45).
+    # Évite les blocages 429 (rate limit data.ecmwf.int) sur requests.head()
+    # qui provoquaient une régression vers des runs obsolètes (ex. 06Z hier).
     now = now or datetime.datetime.now(datetime.timezone.utc)
     for day_offset in [0, 1]:
         d = now - datetime.timedelta(days=day_offset)
@@ -87,22 +93,22 @@ def latest_run(now=None):
             candidate = d.replace(hour=rh, minute=0, second=0, microsecond=0)
             if candidate > now:
                 continue
-            ymd = candidate.strftime("%Y%m%d")
-            ts = candidate.strftime("%Y%m%d%H%M%S")
-            test_url = (f"{BASE_URL}/{ymd}/{candidate.hour:02d}z/ifs/0p25/oper/"
-                        f"{ts}-0h-oper-fc.grib2")
-            try:
-                r = requests.head(test_url, headers=HEADERS, timeout=6)
-                if r.status_code == 200:
-                    return candidate
-            except Exception:
-                pass
-    # Fallback par défaut
-    run_h = 12 if now.hour >= 18 else (6 if now.hour >= 12 else (0 if now.hour >= 6 else 18))
-    dt = now.replace(hour=run_h, minute=0, second=0, microsecond=0)
-    if dt > now or run_h == 18:
-        dt -= datetime.timedelta(days=1 if run_h == 18 and now.hour < 6 else 0)
-    return dt
+            # Passé 6h45, le run est garanti disponible sur data.ecmwf.int
+            if (now - candidate).total_seconds() >= RUN_MATURITY:
+                return candidate
+            # Entre 6h00 et 6h45, tester si les premiers GRIBs sont déjà déposés
+            if (now - candidate).total_seconds() >= 6 * 3600:
+                ymd = candidate.strftime("%Y%m%d")
+                ts = candidate.strftime("%Y%m%d%H%M%S")
+                test_url = (f"{BASE_URL}/{ymd}/{candidate.hour:02d}z/ifs/0p25/oper/"
+                            f"{ts}-0h-oper-fc.grib2")
+                try:
+                    r = requests.head(test_url, headers=HEADERS, timeout=4)
+                    if r.status_code in (200, 429):
+                        return candidate
+                except Exception:
+                    pass
+    return (now - datetime.timedelta(days=1)).replace(hour=18, minute=0, second=0, microsecond=0)
 
 
 def compute_leads(max_hours=MAX_LEAD, run_hour=0):

@@ -354,9 +354,8 @@ def render_lead_par(fields, lead, run_dt, domain, out_dir):
 
     apcp = fields.get("APCP")
     if apcp is not None:
-        # ponytail: Sur ECMWF AIFS, 'tp' (Total Precipitation) est en mètres (m) dans le GRIB2.
-        # Multiplication par 1000 obligatoire pour convertir en millimètres (mm).
-        a = regrid(apcp, lambda v: v * 1000.0)
+        # ponytail: Sur ECMWF AIFS, 'tp' (Total Precipitation) est en kg/m² (= mm) dans le GRIB2 open data.
+        a = regrid(apcp)
         if a is not None:
             apcp_g = a
 
@@ -458,7 +457,7 @@ def make_init_state(prior_field, dom_obj):
             state_warm["max_gust"] = g
     if apcp is not None:
         val, lat, lon = apcp
-        a = dom_obj.regrid(val * 1000.0, lat, lon)
+        a = dom_obj.regrid(val, lat, lon)
         if a is not None:
             state_warm["cum_precip"] = a
     return state_warm

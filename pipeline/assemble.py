@@ -25,6 +25,8 @@ import arpege_open_data
 import icon_open_data
 import aifs_open_data
 
+_FAMILY_RUN_CACHE = {}
+
 
 def assemble_model(model_key, domain, meta):
     out_dir = os.path.join(BASE_DIR, "output", model_key, "maps")
@@ -32,18 +34,46 @@ def assemble_model(model_key, domain, meta):
         print("[assemble] Dossier introuvable : %s" % out_dir, flush=True)
         return False
 
-    # Trouver le run_time le plus récent correspondant exactement au modèle
-    if "gfs" in model_key:
-        run_dt = gfs_open_data.latest_run()
-    elif "icon" in model_key:
-        run_dt = icon_open_data.latest_run()
-    elif "aifs" in model_key:
-        run_dt = aifs_open_data.latest_run()
-    elif "ifs" in model_key:
-        import ifs_open_data
-        run_dt = ifs_open_data.latest_run()
+    # ponytail: Cache par famille de modèle et conservation du run_time existant
+    # pour garantir la cohérence absolue entre domaines (ex: ifs et ifs_france)
+    # et éviter d'écraser un modèle non ciblé par le workflow actif.
+    family = "ifs" if ("ifs" in model_key and "aifs" not in model_key) else (
+        "aifs" if "aifs" in model_key else (
+            "gfs" if "gfs" in model_key else (
+                "icon" if "icon" in model_key else "arpege"
+            )
+        )
+    )
+
+    run_dt = None
+    if family in _FAMILY_RUN_CACHE:
+        run_dt = _FAMILY_RUN_CACHE[family]
     else:
-        run_dt = arpege_open_data.latest_run()
+        existing_index = os.path.join(out_dir, "index.json")
+        if os.path.exists(existing_index):
+            try:
+                with open(existing_index, "r", encoding="utf-8") as f:
+                    old_meta = json.load(f)
+                    if old_meta.get("run_time"):
+                        run_dt = datetime.datetime.fromisoformat(old_meta["run_time"])
+            except Exception:
+                pass
+
+        if run_dt is None:
+            if family == "gfs":
+                run_dt = gfs_open_data.latest_run()
+            elif family == "icon":
+                run_dt = icon_open_data.latest_run()
+            elif family == "aifs":
+                run_dt = aifs_open_data.latest_run()
+            elif family == "ifs":
+                import ifs_open_data
+                run_dt = ifs_open_data.latest_run()
+            else:
+                run_dt = arpege_open_data.latest_run()
+
+        _FAMILY_RUN_CACHE[family] = run_dt
+
     meta["run_time"] = run_dt.isoformat()
 
     # Découvrir toutes les échéances et couches rendues
