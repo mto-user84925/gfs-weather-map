@@ -293,6 +293,279 @@
             cursor: not-allowed;
         }
 
+        /* 🌀 Dropdown Menu Déroulant des Phénomènes & Cyclones */
+        .amfm-cyclones-wrap {
+            position: relative;
+            display: inline-flex;
+        }
+        .amfm-cyclones-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            background: rgba(10, 18, 34, 0.98);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(239, 68, 68, 0.45);
+            border-radius: 12px;
+            padding: 10px 12px;
+            z-index: 550;
+            box-shadow: 0 14px 45px rgba(0, 0, 0, 0.88);
+            flex-direction: column;
+            width: 360px;
+            max-width: 92vw;
+            gap: 8px;
+        }
+        .amfm-cyclones-wrap.open .amfm-cyclones-dropdown {
+            display: flex;
+        }
+        .amfm-cyclones-dd-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .amfm-cyclones-dd-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11.5px;
+            font-weight: 800;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .amfm-cyclones-dd-badge {
+            font-size: 10px;
+            font-weight: 800;
+            background: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            padding: 1px 7px;
+            border-radius: 999px;
+        }
+        .amfm-cyclones-dd-quick-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .amfm-btn-dd-action {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .amfm-btn-dd-action:hover {
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+        .amfm-btn-dd-action.is-active {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+        .amfm-cyclones-dd-subtoggles {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 11px;
+            color: #94a3b8;
+            padding-top: 2px;
+        }
+        .amfm-dd-check-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .amfm-dd-check-label input {
+            cursor: pointer;
+            accent-color: #ef4444;
+        }
+        .amfm-cyclones-dd-list {
+            overflow-y: auto;
+            max-height: 290px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding-right: 2px;
+        }
+        .amfm-cyclones-dd-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        .amfm-cyclones-dd-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+        .amfm-cyclones-dd-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 6px 8px;
+            transition: all 0.15s ease;
+        }
+        .amfm-cyclones-dd-item:hover {
+            background: rgba(30, 41, 59, 0.85);
+            border-color: rgba(0, 210, 255, 0.3);
+        }
+        .amfm-cyclones-dd-item.is-storm-hidden {
+            opacity: 0.45;
+            background: rgba(15, 23, 42, 0.4);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+        .amfm-cyclones-dd-item.is-storm-hidden .amfm-cyclones-dd-name {
+            text-decoration: line-through;
+            color: #94a3b8;
+        }
+        .amfm-cyclones-dd-toggle-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .amfm-cyclones-dd-cb {
+            width: 15px;
+            height: 15px;
+            cursor: pointer;
+            accent-color: #ef4444;
+        }
+        .amfm-cyclones-dd-eye {
+            font-size: 12px;
+            color: #38bdf8;
+            transition: color 0.15s ease;
+        }
+        .amfm-cyclones-dd-item.is-storm-hidden .amfm-cyclones-dd-eye {
+            color: #ef4444;
+        }
+        .amfm-cyclones-dd-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            cursor: pointer;
+        }
+        .amfm-cyclones-dd-line1 {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .amfm-cyclones-dd-name {
+            font-size: 12px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+        .amfm-cyclones-dd-badge-status {
+            font-size: 9px;
+            font-weight: 800;
+            padding: 1px 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .amfm-cyclones-dd-badge-status.status-cyclone {
+            background: rgba(239, 68, 68, 0.25);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        .amfm-cyclones-dd-badge-status.status-invest {
+            background: rgba(234, 179, 8, 0.25);
+            color: #facc15;
+            border: 1px solid rgba(234, 179, 8, 0.4);
+        }
+        .amfm-cyclones-dd-wind {
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-left: auto;
+        }
+        .amfm-cyclones-dd-line2 {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #94a3b8;
+            gap: 4px;
+        }
+        .amfm-cyclones-dd-cat {
+            color: #38bdf8;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .amfm-cyclones-dd-source {
+            color: #64748b;
+            font-size: 9.5px;
+            white-space: nowrap;
+        }
+        .amfm-cyclones-dd-btn-focus {
+            background: rgba(2, 132, 199, 0.15);
+            border: 1px solid rgba(0, 210, 255, 0.25);
+            color: #38bdf8;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            flex-shrink: 0;
+            transition: all 0.15s ease;
+        }
+        .amfm-cyclones-dd-btn-focus:hover {
+            background: #0284c7;
+            color: #ffffff;
+            border-color: #38bdf8;
+            transform: scale(1.1);
+        }
+        .amfm-cyclones-dd-footer {
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .amfm-btn-dd-footer {
+            width: 100%;
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #94a3b8;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+        .amfm-btn-dd-footer:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
         /* Headline repositionnée en bas à gauche de la carte (hors navbar) */
         .amfm-headline {
             position: absolute;
@@ -2886,9 +3159,47 @@
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
                             <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
                         </button>
-                        <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-pressed="true" aria-label="Afficher ou masquer les cyclones et phénomènes" title="Afficher/Masquer tous les cyclones, typhons et INVESTs sur la carte">
-                            <i class="fa-solid fa-hurricane" aria-hidden="true" style="color:#ef4444;"></i> <span>Cyclones</span>
-                        </button>
+                        <!-- Menu Déroulant des Phénomènes & Cyclones -->
+                        <div class="amfm-cyclones-wrap" id="amfm-cyclones-wrap">
+                            <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-haspopup="true" aria-expanded="false" title="Menu déroulant des cyclones &amp; phénomènes actifs (Afficher / Masquer)">
+                                <i class="fa-solid fa-hurricane" aria-hidden="true" style="color:#ef4444;"></i> <span>Cyclones (<span id="cyclone-nav-count">0</span>)</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;" aria-hidden="true"></i>
+                            </button>
+                            <div class="amfm-cyclones-dropdown" id="amfm-cyclones-dropdown" role="menu">
+                                <div class="amfm-cyclones-dd-header">
+                                    <div class="amfm-cyclones-dd-title">
+                                        <span><i class="fa-solid fa-hurricane" style="color:#ef4444;"></i> Phénomènes actifs</span>
+                                        <span class="amfm-cyclones-dd-badge" id="cyclones-dd-count-badge">0</span>
+                                    </div>
+                                    <div class="amfm-cyclones-dd-quick-actions">
+                                        <button type="button" class="amfm-btn-dd-action is-active" id="btn-cyclones-dd-master-toggle" title="Activer ou désactiver l'affichage des cyclones sur la carte">
+                                            <i class="fa-solid fa-power-off"></i> <span id="txt-cyclones-dd-master">Actifs</span>
+                                        </button>
+                                        <button type="button" class="amfm-btn-dd-action" id="btn-cyclones-dd-show-all" title="Tout cocher et afficher sur la carte">
+                                            <i class="fa-solid fa-check-double"></i> <span>Tout cocher</span>
+                                        </button>
+                                        <button type="button" class="amfm-btn-dd-action" id="btn-cyclones-dd-hide-all" title="Tout décocher et masquer de la carte">
+                                            <i class="fa-solid fa-ban"></i> <span>Tout masquer</span>
+                                        </button>
+                                    </div>
+                                    <div class="amfm-cyclones-dd-subtoggles">
+                                        <label class="amfm-dd-check-label" title="Afficher ou masquer les cônes d'incertitude officiels">
+                                            <input type="checkbox" id="chk-cyclones-dd-cone" checked> <span>Cône</span>
+                                        </label>
+                                        <label class="amfm-dd-check-label" title="Afficher ou masquer les trajectoires passées et prévisionnelles">
+                                            <input type="checkbox" id="chk-cyclones-dd-tracks" checked> <span>Trajectoires</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="amfm-cyclones-dd-list" id="amfm-cyclones-dd-list">
+                                    <div style="text-align:center; padding:15px; color:#94a3b8; font-size:12px;">Chargement des phénomènes…</div>
+                                </div>
+                                <div class="amfm-cyclones-dd-footer">
+                                    <button type="button" class="amfm-btn-dd-footer" id="btn-cyclones-dd-open-modal">
+                                        <i class="fa-solid fa-list-check"></i> Ouvrir les fiches détaillées complètes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <button type="button" class="amfm-btn amfm-btn-toggle amfm-btn-period-nav" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
                             <i class="fa-solid fa-calendar-days" aria-hidden="true" style="color:#00d2ff;"></i> <span style="font-weight:700;">🗓️ Période</span>
                         </button>

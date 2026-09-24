@@ -7988,13 +7988,20 @@
                 scheduleRender();
             });
         }
-        if (toggleCyclonesButton) {
-            toggleCyclonesButton.addEventListener('click', function () {
-                cyclonesVisible = !cyclonesVisible;
-                toggleCyclonesButton.classList.toggle('is-active', cyclonesVisible);
-                toggleCyclonesButton.setAttribute('aria-pressed', cyclonesVisible ? 'true' : 'false');
-                checkCycloneAnimation();
-                scheduleRender();
+        // Dropdown Menu Déroulant Phénomènes & Cyclones : ouverture/fermeture + clic extérieur
+        var cyclonesWrap = document.getElementById('amfm-cyclones-wrap');
+        var cyclonesNavBtn = document.getElementById('btn-toggle-cyclones-nav') || toggleCyclonesButton;
+        if (cyclonesNavBtn && cyclonesWrap) {
+            cyclonesNavBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = cyclonesWrap.classList.toggle('open');
+                cyclonesNavBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            });
+            document.addEventListener('click', function (e) {
+                if (!cyclonesWrap.contains(e.target)) {
+                    cyclonesWrap.classList.remove('open');
+                    cyclonesNavBtn.setAttribute('aria-expanded', 'false');
+                }
             });
         }
         if (toggleFrontsButton) {
@@ -8037,6 +8044,8 @@
                 cycloneConeVisible = !cycloneConeVisible;
                 btnToggleCycloneCone.classList.toggle('is-active', cycloneConeVisible);
                 btnToggleCycloneCone.classList.toggle('is-off', !cycloneConeVisible);
+                var ddCone = document.getElementById('chk-cyclones-dd-cone');
+                if (ddCone) ddCone.checked = cycloneConeVisible;
                 scheduleRender();
             });
         }
@@ -8045,6 +8054,8 @@
                 cycloneTracksVisible = !cycloneTracksVisible;
                 btnToggleCycloneTracks.classList.toggle('is-active', cycloneTracksVisible);
                 btnToggleCycloneTracks.classList.toggle('is-off', !cycloneTracksVisible);
+                var ddTracks = document.getElementById('chk-cyclones-dd-tracks');
+                if (ddTracks) ddTracks.checked = cycloneTracksVisible;
                 scheduleRender();
             });
         }
@@ -8702,12 +8713,179 @@
                     if (bs) bs.textContent = isCardH ? 'Masqué' : 'Visible';
                 }
             }
+            // 3. Bouton "Tout masquer / Tout afficher" dans la modale
             var allBtn = document.getElementById('btn-cyclones-modal-toggle-all');
             if (allBtn && activeCyclonesData && activeCyclonesData.length > 0) {
                 var allH = activeCyclonesData.every(function(st) { return hiddenStorms.has(getStormKey(st)); });
                 var ai = allBtn.querySelector('i');
                 if (ai) ai.className = 'fa-solid ' + (allH ? 'fa-eye' : 'fa-eye-slash');
                 allBtn.innerHTML = '<i class="fa-solid ' + (allH ? 'fa-eye' : 'fa-eye-slash') + '"></i> ' + (allH ? 'Tout afficher' : 'Tout masquer');
+            }
+
+            // 4. Éléments du menu déroulant (dropdown)
+            var ddItems = document.querySelectorAll('#amfm-cyclones-dd-list .amfm-cyclones-dd-item');
+            for (var di = 0; di < ddItems.length; di++) {
+                var itemEl = ddItems[di];
+                var ik = itemEl.dataset.stormKey;
+                if (!ik) continue;
+                var isItemH = hiddenStorms.has(ik);
+                itemEl.classList.toggle('is-storm-hidden', isItemH);
+                var cb = itemEl.querySelector('.amfm-cyclones-dd-cb');
+                if (cb) cb.checked = !isItemH;
+                var ddEye = itemEl.querySelector('.amfm-cyclones-dd-eye i');
+                if (ddEye) ddEye.className = 'fa-solid ' + (isItemH ? 'fa-eye-slash' : 'fa-eye');
+                var ddWrap = itemEl.querySelector('.amfm-cyclones-dd-toggle-wrap');
+                if (ddWrap) ddWrap.title = isItemH ? 'Afficher ce phénomène sur la carte' : 'Masquer ce phénomène sur la carte';
+            }
+
+            // 5. Compteurs navbar et badge dropdown
+            if (activeCyclonesData && activeCyclonesData.length > 0) {
+                var total = activeCyclonesData.length;
+                var visCount = activeCyclonesData.filter(function(st) { return !hiddenStorms.has(getStormKey(st)); }).length;
+                var navCount = document.getElementById('cyclone-nav-count');
+                if (navCount) {
+                    navCount.textContent = (visCount === total) ? String(total) : (visCount + '/' + total);
+                    navCount.title = visCount + ' phénomène(s) visible(s) sur ' + total;
+                }
+                var ddCountBadge = document.getElementById('cyclones-dd-count-badge');
+                if (ddCountBadge) {
+                    ddCountBadge.textContent = (visCount === total) ? String(total) : (visCount + ' / ' + total);
+                    ddCountBadge.title = visCount + ' phénomène(s) visible(s) sur ' + total;
+                }
+            }
+
+            // 6. Master switch et boutons de statut
+            var masterBtn = document.getElementById('btn-cyclones-dd-master-toggle');
+            var masterTxt = document.getElementById('txt-cyclones-dd-master');
+            if (masterBtn) {
+                masterBtn.classList.toggle('is-active', cyclonesVisible);
+                if (masterTxt) masterTxt.textContent = cyclonesVisible ? 'Actifs' : 'Masqués';
+            }
+            var navBtn = document.getElementById('btn-toggle-cyclones-nav');
+            if (navBtn) {
+                navBtn.classList.toggle('is-active', cyclonesVisible);
+                navBtn.setAttribute('aria-pressed', cyclonesVisible ? 'true' : 'false');
+            }
+        }
+
+        function renderCyclonesDropdown() {
+            var listEl = document.getElementById('amfm-cyclones-dd-list');
+            var navCount = document.getElementById('cyclone-nav-count');
+            var ddCountBadge = document.getElementById('cyclones-dd-count-badge');
+            var masterBtn = document.getElementById('btn-cyclones-dd-master-toggle');
+            var masterTxt = document.getElementById('txt-cyclones-dd-master');
+            var navBtn = document.getElementById('btn-toggle-cyclones-nav');
+
+            if (!activeCyclonesData || activeCyclonesData.length === 0) {
+                if (navCount) navCount.textContent = '0';
+                if (ddCountBadge) ddCountBadge.textContent = '0';
+                if (listEl) {
+                    listEl.innerHTML = '<div style="text-align:center; padding:15px; color:#94a3b8; font-size:12px;">Aucun phénomène actif détecté</div>';
+                }
+                return;
+            }
+
+            var total = activeCyclonesData.length;
+            var visibleCount = activeCyclonesData.filter(function(st) { return !hiddenStorms.has(getStormKey(st)); }).length;
+            if (navCount) navCount.textContent = (visibleCount === total) ? String(total) : (visibleCount + '/' + total);
+            if (ddCountBadge) {
+                ddCountBadge.textContent = (visibleCount === total) ? String(total) : (visibleCount + ' / ' + total);
+                ddCountBadge.title = visibleCount + ' phénomène(s) visible(s) sur ' + total;
+            }
+            if (masterBtn) {
+                masterBtn.classList.toggle('is-active', cyclonesVisible);
+                if (masterTxt) masterTxt.textContent = cyclonesVisible ? 'Actifs' : 'Masqués';
+            }
+            if (navBtn) {
+                navBtn.classList.toggle('is-active', cyclonesVisible);
+                navBtn.setAttribute('aria-pressed', cyclonesVisible ? 'true' : 'false');
+            }
+
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            for (var i = 0; i < activeCyclonesData.length; i++) {
+                var s = activeCyclonesData[i];
+                var sKey = getStormKey(s);
+                var isHidden = hiddenStorms.has(sKey);
+                var isInvest = (s.type === 'invest');
+                var cName = getCleanStormName(s, false);
+
+                var item = document.createElement('div');
+                item.className = 'amfm-cyclones-dd-item' + (isHidden ? ' is-storm-hidden' : '');
+                item.dataset.stormKey = sKey;
+
+                var isHurricane = (s.classification === 'HU' || (s.category && (s.category.indexOf('Ouragan') !== -1 || s.category.indexOf('Typhon') !== -1)));
+                var badgeLabel = isInvest ? '🟡 INVEST' : (isHurricane ? '🔴 OURAGAN' : '🔴 CYCLONE');
+                var badgeClass = isInvest ? 'status-invest' : 'status-cyclone';
+                var windOrProb = isInvest ? (s.probability || 'En surveillance') : ('💨 ' + (s.wind_kmh || 0) + ' km/h');
+                var categoryStr = s.category || (isInvest ? 'Zone perturbée en surveillance' : 'Dépression tropicale');
+                var sourceStr = s.source || 'NOAA / NHC';
+
+                item.innerHTML =
+                    '<label class="amfm-cyclones-dd-toggle-wrap" title="' + (isHidden ? 'Afficher sur la carte' : 'Masquer de la carte') + '">' +
+                        '<input type="checkbox" class="amfm-cyclones-dd-cb"' + (!isHidden ? ' checked' : '') + '>' +
+                        '<span class="amfm-cyclones-dd-eye"><i class="fa-solid ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i></span>' +
+                    '</label>' +
+                    '<div class="amfm-cyclones-dd-info" title="Cliquer pour centrer et zoomer sur ' + cName + '">' +
+                        '<div class="amfm-cyclones-dd-line1">' +
+                            '<span class="amfm-cyclones-dd-badge-status ' + badgeClass + '">' + badgeLabel + '</span>' +
+                            '<span class="amfm-cyclones-dd-name">' + cName + '</span>' +
+                            '<span class="amfm-cyclones-dd-wind">' + windOrProb + '</span>' +
+                        '</div>' +
+                        '<div class="amfm-cyclones-dd-line2">' +
+                            '<span class="amfm-cyclones-dd-cat" title="' + categoryStr + '">' + categoryStr + '</span>' +
+                            '<span class="amfm-cyclones-dd-source" title="Source : ' + sourceStr + '">' + sourceStr + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button type="button" class="amfm-cyclones-dd-btn-focus" title="Centrer et zoomer sur la carte">' +
+                        '<i class="fa-solid fa-crosshairs"></i>' +
+                    '</button>';
+
+                // Clic sur la case à cocher / œil
+                (function(storm, k) {
+                    var cb = item.querySelector('.amfm-cyclones-dd-cb');
+                    var wrap = item.querySelector('.amfm-cyclones-dd-toggle-wrap');
+                    if (wrap) {
+                        wrap.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                        });
+                    }
+                    if (cb) {
+                        cb.addEventListener('change', function(e) {
+                            e.stopPropagation();
+                            if (this.checked) {
+                                hiddenStorms.delete(k);
+                            } else {
+                                hiddenStorms.add(k);
+                            }
+                            syncCycloneVisibilityUI();
+                            scheduleRender();
+                            checkCycloneAnimation();
+                        });
+                    }
+                })(s, sKey);
+
+                // Clic sur l'info ou le bouton focus pour centrer et zoomer
+                (function(storm, k) {
+                    var infoEl = item.querySelector('.amfm-cyclones-dd-info');
+                    var focusBtn = item.querySelector('.amfm-cyclones-dd-btn-focus');
+                    var handleFocus = function(e) {
+                        e.stopPropagation();
+                        if (hiddenStorms.has(k)) {
+                            hiddenStorms.delete(k);
+                            syncCycloneVisibilityUI();
+                            scheduleRender();
+                        }
+                        focusOnCyclone(storm);
+                        var cWrap = document.getElementById('amfm-cyclones-wrap');
+                        if (cWrap) cWrap.classList.remove('open');
+                    };
+                    if (infoEl) infoEl.addEventListener('click', handleFocus);
+                    if (focusBtn) focusBtn.addEventListener('click', handleFocus);
+                })(s, sKey);
+
+                listEl.appendChild(item);
             }
         }
 
@@ -8716,14 +8894,103 @@
             var container = document.getElementById('cyclone-items');
             if (!bar || !container) return;
 
+            // Câblage des événements du menu déroulant dropdown
+            var ddMenu = document.getElementById('amfm-cyclones-dropdown');
+            if (ddMenu) {
+                ddMenu.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            }
+
+            var masterBtn = document.getElementById('btn-cyclones-dd-master-toggle');
+            if (masterBtn) {
+                masterBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    cyclonesVisible = !cyclonesVisible;
+                    syncCycloneVisibilityUI();
+                    checkCycloneAnimation();
+                    scheduleRender();
+                });
+            }
+
+            var btnShowAll = document.getElementById('btn-cyclones-dd-show-all');
+            if (btnShowAll) {
+                btnShowAll.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    hiddenStorms.clear();
+                    syncCycloneVisibilityUI();
+                    checkCycloneAnimation();
+                    scheduleRender();
+                });
+            }
+
+            var btnHideAll = document.getElementById('btn-cyclones-dd-hide-all');
+            if (btnHideAll) {
+                btnHideAll.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (activeCyclonesData) {
+                        activeCyclonesData.forEach(function(st) {
+                            hiddenStorms.add(getStormKey(st));
+                        });
+                    }
+                    syncCycloneVisibilityUI();
+                    checkCycloneAnimation();
+                    scheduleRender();
+                });
+            }
+
+            var chkCone = document.getElementById('chk-cyclones-dd-cone');
+            if (chkCone) {
+                chkCone.checked = cycloneConeVisible;
+                chkCone.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    cycloneConeVisible = chkCone.checked;
+                    if (btnToggleCycloneCone) {
+                        btnToggleCycloneCone.classList.toggle('is-active', cycloneConeVisible);
+                        btnToggleCycloneCone.classList.toggle('is-off', !cycloneConeVisible);
+                    }
+                    scheduleRender();
+                });
+            }
+
+            var chkTracks = document.getElementById('chk-cyclones-dd-tracks');
+            if (chkTracks) {
+                chkTracks.checked = cycloneTracksVisible;
+                chkTracks.addEventListener('change', function(e) {
+                    e.stopPropagation();
+                    cycloneTracksVisible = chkTracks.checked;
+                    if (btnToggleCycloneTracks) {
+                        btnToggleCycloneTracks.classList.toggle('is-active', cycloneTracksVisible);
+                        btnToggleCycloneTracks.classList.toggle('is-off', !cycloneTracksVisible);
+                    }
+                    scheduleRender();
+                });
+            }
+
+            var btnOpenModal = document.getElementById('btn-cyclones-dd-open-modal');
+            if (btnOpenModal) {
+                btnOpenModal.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    var cWrap = document.getElementById('amfm-cyclones-wrap');
+                    if (cWrap) cWrap.classList.remove('open');
+                    openCyclonesModal();
+                });
+            }
+
             function processCycloneData(data) {
                 if (!data || !data.storms || data.storms.length === 0) {
                     bar.style.display = 'none';
+                    renderCyclonesDropdown();
                     return;
                 }
                 activeCyclonesData = data.storms;
                 window.activeCyclonesData = activeCyclonesData;
                 container.innerHTML = '';
+                renderCyclonesDropdown();
 
                 // 1. Bouton "Tous les phénomènes (N)" dans le bandeau
                 var allBtn = document.getElementById('btn-open-cyclones-modal');
@@ -9048,6 +9315,14 @@
         function focusOnCyclone(storm) {
             if (!storm) return;
             closeCyclonesModal();
+            var cyclonesWrap = document.getElementById('amfm-cyclones-wrap');
+            if (cyclonesWrap) cyclonesWrap.classList.remove('open');
+
+            var k = getStormKey(storm);
+            if (hiddenStorms.has(k)) {
+                hiddenStorms.delete(k);
+                syncCycloneVisibilityUI();
+            }
 
             var lat = Number(storm.lat !== undefined ? storm.lat : storm.latitude);
             var lon = Number(storm.lon !== undefined ? storm.lon : storm.longitude);

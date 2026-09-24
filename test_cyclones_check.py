@@ -37,10 +37,17 @@ def check_index_html():
         html = f.read()
     
     assert "data-amfm-toggle-cyclones" in html, "Bouton global data-amfm-toggle-cyclones absent de index.html."
+    assert "amfm-cyclones-wrap" in html, "Conteneur dropdown amfm-cyclones-wrap absent de index.html."
+    assert "amfm-cyclones-dropdown" in html, "Menu déroulant amfm-cyclones-dropdown absent de index.html."
+    assert "btn-cyclones-dd-master-toggle" in html, "Interrupteur maître dropdown absent de index.html."
+    assert "btn-cyclones-dd-show-all" in html, "Bouton tout cocher absent de index.html."
+    assert "btn-cyclones-dd-hide-all" in html, "Bouton tout masquer absent de index.html."
+    assert "chk-cyclones-dd-cone" in html, "Case à cocher cône absente de index.html."
+    assert "chk-cyclones-dd-tracks" in html, "Case à cocher trajectoires absente de index.html."
+    assert ".amfm-cyclones-dd-item" in html, "CSS .amfm-cyclones-dd-item manquant dans index.html."
     assert ".cyclone-pill-eye" in html, "CSS .cyclone-pill-eye manquant dans index.html."
     assert ".amfm-btn-storm-eye" in html, "CSS .amfm-btn-storm-eye manquant dans index.html."
-    assert ".amfm-btn-cyclones-toggle-all" in html, "CSS .amfm-btn-cyclones-toggle-all manquant dans index.html."
-    print("✓ index.html valide : Bouton global barre d outils et styles de masquage individuel présents.")
+    print("✓ index.html valide : Menu déroulant navbar, contrôles rapides et styles présents.")
 
 def check_js_logic():
     js_path = os.path.join(BASE_DIR, "js", "arome-map.js")
@@ -50,9 +57,13 @@ def check_js_logic():
     assert "var hiddenStorms = new Set();" in js, "hiddenStorms Set manquant dans js/arome-map.js."
     assert "function isStormVisible(" in js, "Fonction isStormVisible manquante dans js/arome-map.js."
     assert "function syncCycloneVisibilityUI(" in js, "Fonction syncCycloneVisibilityUI manquante dans js/arome-map.js."
+    assert "function renderCyclonesDropdown(" in js, "Fonction renderCyclonesDropdown manquante dans js/arome-map.js."
     assert "if (!isStormVisible(storm)) continue;" in js, "Filtre isStormVisible manquant dans drawCycloneOverlays."
     assert "if (!isStormVisible(s)) continue;" in js, "Filtre isStormVisible manquant dans hasAnyVisibleStorm."
-    print("✓ js/arome-map.js valide : Gestion hiddenStorms, filtres drawCycloneOverlays et synchronisation UI confirmés.")
+    assert "btn-cyclones-dd-master-toggle" in js, "Wiring master toggle dropdown manquant dans js/arome-map.js."
+    assert "btn-cyclones-dd-show-all" in js, "Wiring show all dropdown manquant dans js/arome-map.js."
+    assert "btn-cyclones-dd-hide-all" in js, "Wiring hide all dropdown manquant dans js/arome-map.js."
+    print("✓ js/arome-map.js valide : Menu déroulant, renderCyclonesDropdown, gestion hiddenStorms et synchronisation UI confirmés.")
 
 if __name__ == "__main__":
     check_cyclone_json()
