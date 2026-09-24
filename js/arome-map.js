@@ -241,6 +241,14 @@
         })();
         var cycloneLabelsVisible = (cycloneLabelMode !== 'none');
         var activeCyclonesData = [];
+        var hiddenStorms = new Set();
+        function getStormKey(storm) {
+            if (!storm) return '';
+            return String(storm.id || storm.name || (storm.lat + '_' + storm.lon)).trim().toLowerCase();
+        }
+        function isStormVisible(storm) {
+            return !hiddenStorms.has(getStormKey(storm));
+        }
         // seaMode: 'land' par défaut (mer bleue masquée), 'none' (terres & mer partout), 'coast' (terres + littoral)
         var seaMode = (function () {
             var s = (urlInitParams.get('sea') || urlInitParams.get('sea_mode') || '').toLowerCase();
@@ -6833,7 +6841,7 @@
 
         var cycloneAnimFrame = null;
         function hasAnyVisibleStorm() {
-            if (!activeCyclonesData || !activeCyclonesData.length || !manifest || !manifest.bounds) {
+            if (!cyclonesVisible || !activeCyclonesData || !activeCyclonesData.length || !manifest || !manifest.bounds) {
                 return false;
             }
             var vw = viewport ? viewport.clientWidth : 0;
@@ -6842,6 +6850,7 @@
             var mapRect = computeMapRect(vw, vh);
             for (var i = 0; i < activeCyclonesData.length; i++) {
                 var s = activeCyclonesData[i];
+                if (!isStormVisible(s)) continue;
                 var sLat = Number(s.lat !== undefined ? s.lat : s.latitude);
                 var sLon = Number(s.lon !== undefined ? s.lon : s.longitude);
                 if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) continue;
@@ -6912,6 +6921,7 @@
 
             for (var si = 0; si < activeCyclonesData.length; si++) {
                 var storm = activeCyclonesData[si];
+                if (!isStormVisible(storm)) continue;
                 var sLat = Number(storm.lat !== undefined ? storm.lat : storm.latitude);
                 var sLon = Number(storm.lon !== undefined ? storm.lon : storm.longitude);
                 if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) continue;
@@ -8654,8 +8664,52 @@
             });
 
         // ────────────────────────────────────────────────────────────────────
-        // 🌀 TRACKER TEMPS RÉEL DES CYCLONES & TYPHONS MONDIAUX (NHC & JTWC)
+        // 🌀 TRACKER TEMPS RÉEL DES CYCLONES & TYPHONS MONDIAUX
+        // (NHC, JTWC, JMA, BoM, IMD, CMRS Réunion, GDACS & OMM SWIC 3.0)
         // ────────────────────────────────────────────────────────────────────
+
+        function syncCycloneVisibilityUI() {
+            var pills = document.querySelectorAll('#cyclone-items .cyclone-pill');
+            for (var pi = 0; pi < pills.length; pi++) {
+                var p = pills[pi];
+                var k = p.dataset.stormKey;
+                if (!k) continue;
+                var isH = hiddenStorms.has(k);
+                p.classList.toggle('is-storm-hidden', isH);
+                var icon = p.querySelector('.cyclone-pill-eye i');
+                if (icon) {
+                    icon.className = 'fa-solid ' + (isH ? 'fa-eye-slash' : 'fa-eye');
+                }
+                var eyeSpan = p.querySelector('.cyclone-pill-eye');
+                if (eyeSpan) {
+                    eyeSpan.title = isH ? 'Afficher ce phénomène sur la carte' : 'Masquer ce phénomène sur la carte';
+                }
+            }
+            var cards = document.querySelectorAll('#cyclones-modal-list .amfm-cyclone-card');
+            for (var ci = 0; ci < cards.length; ci++) {
+                var c = cards[ci];
+                var ck = c.dataset.stormKey;
+                if (!ck) continue;
+                var isCardH = hiddenStorms.has(ck);
+                c.classList.toggle('is-storm-hidden', isCardH);
+                var btn = c.querySelector('.amfm-btn-storm-eye');
+                if (btn) {
+                    btn.classList.toggle('is-hidden', isCardH);
+                    btn.title = isCardH ? 'Afficher ce phénomène sur la carte' : 'Masquer ce phénomène sur la carte';
+                    var bi = btn.querySelector('i');
+                    if (bi) bi.className = 'fa-solid ' + (isCardH ? 'fa-eye-slash' : 'fa-eye');
+                    var bs = btn.querySelector('span');
+                    if (bs) bs.textContent = isCardH ? 'Masqué' : 'Visible';
+                }
+            }
+            var allBtn = document.getElementById('btn-cyclones-modal-toggle-all');
+            if (allBtn && activeCyclonesData && activeCyclonesData.length > 0) {
+                var allH = activeCyclonesData.every(function(st) { return hiddenStorms.has(getStormKey(st)); });
+                var ai = allBtn.querySelector('i');
+                if (ai) ai.className = 'fa-solid ' + (allH ? 'fa-eye' : 'fa-eye-slash');
+                allBtn.innerHTML = '<i class="fa-solid ' + (allH ? 'fa-eye' : 'fa-eye-slash') + '"></i> ' + (allH ? 'Tout afficher' : 'Tout masquer');
+            }
+        }
 
         function initCycloneTracker() {
             var bar = document.getElementById('cyclone-alert-bar');
@@ -8697,21 +8751,47 @@
                 var countBadge = document.getElementById('cyclone-total-count');
                 if (countBadge) countBadge.textContent = String(data.storms.length);
 
-                // 2. Pastilles horizontales dans le bandeau ticker
+                // 2. Pastilles horizontales dans le bandeau ticker avec bouton œil individuel
                 for (var i = 0; i < data.storms.length; i++) {
                     var s = data.storms[i];
+                    var sKey = getStormKey(s);
+                    var isHidden = hiddenStorms.has(sKey);
                     var pill = document.createElement('button');
                     pill.type = 'button';
+                    pill.dataset.stormKey = sKey;
                     var isInvest = (s.type === 'invest');
                     var cName = getCleanStormName(s, false);
-                    pill.className = isInvest ? 'cyclone-pill cyclone-pill-invest' : 'cyclone-pill';
+                    pill.className = (isInvest ? 'cyclone-pill cyclone-pill-invest' : 'cyclone-pill') + (isHidden ? ' is-storm-hidden' : '');
                     if (isInvest) {
                         pill.innerHTML = '🟡 <strong>' + cName + '</strong> (' + (s.probability || 'En surveillance') + ')';
-                        pill.title = 'Surveillance INVEST : ' + cName + ' — ' + (s.probability || '') + ' (Bassin ' + s.basin + ')';
+                        pill.title = 'Surveillance INVEST : ' + cName + ' — ' + (s.probability || '') + ' (Bassin ' + s.basin + ') — Cliquer pour centrer';
                     } else {
                         pill.innerHTML = '🔴 <strong>' + cName + '</strong> (' + s.category + ' • ' + s.wind_kmh + ' km/h)';
-                        pill.title = 'Cyclone Actif : ' + cName + ' — ' + s.category + ' (Bassin ' + s.basin + ')';
+                        pill.title = 'Cyclone Actif : ' + cName + ' — ' + s.category + ' (Bassin ' + s.basin + ') — Cliquer pour centrer';
                     }
+
+                    // Bouton œil individuel
+                    var eyeSpan = document.createElement('span');
+                    eyeSpan.className = 'cyclone-pill-eye';
+                    eyeSpan.innerHTML = '<i class="fa-solid ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i>';
+                    eyeSpan.title = isHidden ? 'Afficher ce phénomène sur la carte' : 'Masquer ce phénomène sur la carte';
+                    (function(storm) {
+                        eyeSpan.addEventListener('click', function(ev) {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            var k = getStormKey(storm);
+                            if (hiddenStorms.has(k)) {
+                                hiddenStorms.delete(k);
+                            } else {
+                                hiddenStorms.add(k);
+                            }
+                            syncCycloneVisibilityUI();
+                            scheduleRender();
+                            checkCycloneAnimation();
+                        });
+                    })(s);
+                    pill.appendChild(eyeSpan);
+
                     (function(storm) {
                         pill.addEventListener('click', function(e) {
                             e.preventDefault();
@@ -8796,20 +8876,44 @@
             var cyclonesCount = activeCyclonesData.filter(function(s) { return s.type === 'cyclone'; }).length;
             var investsCount = activeCyclonesData.filter(function(s) { return s.type === 'invest'; }).length;
 
+            var allHidden = activeCyclonesData.length > 0 && activeCyclonesData.every(function(st) { return hiddenStorms.has(getStormKey(st)); });
             if (statsContainer) {
                 statsContainer.innerHTML =
                     '<div class="amfm-stat-pill"><strong>' + activeCyclonesData.length + '</strong> Phénomènes totaux</div>' +
                     '<div class="amfm-stat-pill stat-cyclone">🔴 <strong>' + cyclonesCount + '</strong> Cyclone(s) &amp; Ouragan(s)</div>' +
-                    '<div class="amfm-stat-pill stat-invest">🟡 <strong>' + investsCount + '</strong> INVEST(s) sous surveillance</div>';
+                    '<div class="amfm-stat-pill stat-invest">🟡 <strong>' + investsCount + '</strong> INVEST(s) sous surveillance</div>' +
+                    '<div class="amfm-cyclones-stats-actions">' +
+                        '<button type="button" class="amfm-btn-cyclones-toggle-all" id="btn-cyclones-modal-toggle-all">' +
+                            '<i class="fa-solid ' + (allHidden ? 'fa-eye' : 'fa-eye-slash') + '"></i> ' + (allHidden ? 'Tout afficher sur la carte' : 'Tout masquer sur la carte') +
+                        '</button>' +
+                    '</div>';
+                var btnToggleAll = document.getElementById('btn-cyclones-modal-toggle-all');
+                if (btnToggleAll) {
+                    btnToggleAll.onclick = function(e) {
+                        e.preventDefault();
+                        if (allHidden) {
+                            hiddenStorms.clear();
+                        } else {
+                            activeCyclonesData.forEach(function(st) { hiddenStorms.add(getStormKey(st)); });
+                        }
+                        syncCycloneVisibilityUI();
+                        openCyclonesModal();
+                        scheduleRender();
+                        checkCycloneAnimation();
+                    };
+                }
             }
 
             if (listContainer) {
                 listContainer.innerHTML = '';
                 for (var i = 0; i < activeCyclonesData.length; i++) {
                     var s = activeCyclonesData[i];
+                    var sKey = getStormKey(s);
+                    var isHidden = hiddenStorms.has(sKey);
                     var isInvest = (s.type === 'invest');
                     var card = document.createElement('div');
-                    card.className = 'amfm-cyclone-card ' + (isInvest ? 'is-invest' : 'is-cyclone');
+                    card.className = 'amfm-cyclone-card ' + (isInvest ? 'is-invest' : 'is-cyclone') + (isHidden ? ' is-storm-hidden' : '');
+                    card.dataset.stormKey = sKey;
 
                     var lat = Number(s.lat !== undefined ? s.lat : s.latitude);
                     var lon = Number(s.lon !== undefined ? s.lon : s.longitude);
@@ -8822,7 +8926,12 @@
                                 '<span class="amfm-cyclone-status-badge">' + (isInvest ? '🟡 INVEST' : '🔴 CYCLONE') + '</span>' +
                                 '<h3 class="amfm-cyclone-name">' + getCleanStormName(s, false) + '</h3>' +
                             '</div>' +
-                            '<span class="amfm-cyclone-cat-badge">' + s.category + '</span>' +
+                            '<div style="display:inline-flex; align-items:center; gap:6px;">' +
+                                '<span class="amfm-cyclone-cat-badge">' + s.category + '</span>' +
+                                '<button type="button" class="amfm-btn-storm-eye' + (isHidden ? ' is-hidden' : '') + '" data-storm-key="' + sKey + '" title="' + (isHidden ? 'Afficher ce phénomène sur la carte' : 'Masquer ce phénomène sur la carte') + '">' +
+                                    '<i class="fa-solid ' + (isHidden ? 'fa-eye-slash' : 'fa-eye') + '"></i> <span>' + (isHidden ? 'Masqué' : 'Visible') + '</span>' +
+                                '</button>' +
+                            '</div>' +
                         '</div>' +
                         '<div class="amfm-cyclone-grid">' +
                             '<div class="amfm-cyclone-data-item"><span class="amfm-data-label">Vents soutenus</span><span class="amfm-data-val">💨 ' + (s.wind_kmh || 0) + ' km/h</span></div>' +
@@ -8839,6 +8948,26 @@
                         '</div>';
 
                     card.innerHTML = html;
+
+                    var eyeBtn = card.querySelector('.amfm-btn-storm-eye');
+                    if (eyeBtn) {
+                        (function(storm) {
+                            eyeBtn.addEventListener('click', function(ev) {
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                var k = getStormKey(storm);
+                                if (hiddenStorms.has(k)) {
+                                    hiddenStorms.delete(k);
+                                } else {
+                                    hiddenStorms.add(k);
+                                }
+                                syncCycloneVisibilityUI();
+                                scheduleRender();
+                                checkCycloneAnimation();
+                            });
+                        })(s);
+                    }
+
                     (function(storm) {
                         card.style.cursor = 'pointer';
                         card.addEventListener('click', function(e) {

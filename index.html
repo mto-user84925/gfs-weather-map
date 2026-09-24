@@ -1594,6 +1594,33 @@
             border-color: #ffffff;
             transform: translateY(-1px);
         }
+        .cyclone-pill-eye {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-size: 11px;
+            opacity: 0.85;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .cyclone-pill-eye:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.15);
+        }
+        .cyclone-pill.is-storm-hidden {
+            opacity: 0.45;
+            text-decoration: line-through;
+            filter: grayscale(0.8);
+            border-color: rgba(239, 68, 68, 0.5) !important;
+        }
+        .cyclone-pill.is-storm-hidden .cyclone-pill-eye {
+            text-decoration: none;
+            color: #ef4444;
+        }
 
         /* 🌀 BOUTON TOUS LES PHÉNOMÈNES DANS LE BANDEAU */
         .cyclone-all-btn {
@@ -1902,6 +1929,56 @@
         }
         .amfm-cyclone-card.is-invest {
             border-left: 4px solid #eab308;
+        }
+        .amfm-cyclone-card.is-storm-hidden {
+            opacity: 0.5;
+            border-color: rgba(255, 255, 255, 0.1);
+            filter: grayscale(0.6);
+        }
+        .amfm-btn-storm-eye {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .amfm-btn-storm-eye:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: #fff;
+            transform: translateY(-1px);
+        }
+        .amfm-btn-storm-eye.is-hidden {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #ef4444;
+            color: #fca5a5;
+        }
+        .amfm-btn-cyclones-toggle-all {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 999px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s ease;
+            margin-left: auto;
+        }
+        .amfm-btn-cyclones-toggle-all:hover {
+            background: #fff;
+            color: #0f172a;
+            transform: translateY(-1px);
         }
         .amfm-cyclone-card-header {
             display: flex;
@@ -2808,6 +2885,9 @@
                         </button>
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
                             <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
+                        </button>
+                        <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-pressed="true" aria-label="Afficher ou masquer les cyclones et phénomènes" title="Afficher/Masquer tous les cyclones, typhons et INVESTs sur la carte">
+                            <i class="fa-solid fa-hurricane" aria-hidden="true" style="color:#ef4444;"></i> <span>Cyclones</span>
                         </button>
                         <button type="button" class="amfm-btn amfm-btn-toggle amfm-btn-period-nav" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
                             <i class="fa-solid fa-calendar-days" aria-hidden="true" style="color:#00d2ff;"></i> <span style="font-weight:700;">🗓️ Période</span>
