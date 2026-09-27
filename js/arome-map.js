@@ -275,6 +275,11 @@
         window._getCurrentProbe = function() { return currentProbe; };
         window._getPeriodCompositeCanvas = function() { return periodCompositeCanvas; };
         window._computePeriodComposite = function() { return computePeriodComposite.apply(null, arguments); };
+        window._hiddenStorms = hiddenStorms;
+        window._focusOnCyclone = function(s) { return focusOnCyclone(s); };
+        window._findHitStorm = function(x, y) { return findHitStorm(x, y); };
+        window._projectCoords = function(lat, lon) { return projectCoords(lat, lon); };
+        window._computeMapRect = function(w, h, t) { return computeMapRect(w, h, t); };
         var franceMaskImage = new Image();
         franceMaskImage.crossOrigin = 'anonymous';
         franceMaskImage.src = resolvePath('maps/mask_france.png');
@@ -908,10 +913,26 @@
 
         function setToolHint(message) {
             if (!toolHint) {
-                return;
+                toolHint = document.querySelector('[data-amfm-tool-hint]');
+                if (!toolHint && app) {
+                    toolHint = document.createElement('div');
+                    toolHint.setAttribute('data-amfm-tool-hint', '');
+                    toolHint.className = 'amfm-tool-hint-toast';
+                    app.appendChild(toolHint);
+                }
             }
+            if (!toolHint) return;
             toolHint.textContent = message || '';
             toolHint.hidden = !message;
+            if (toolHint._timer) {
+                clearTimeout(toolHint._timer);
+                toolHint._timer = null;
+            }
+            if (message) {
+                toolHint._timer = setTimeout(function() {
+                    if (toolHint) toolHint.hidden = true;
+                }, 3500);
+            }
         }
 
         function setToolMode(mode) {
@@ -4359,7 +4380,15 @@
                 pacifique_ouest:    { isDomain: 'pacifique_ouest', reset: true },
                 pacifique_sud:      { isDomain: 'pacifique_sud', reset: true },
                 pacifique_est:      { isDomain: 'pacifique_est', reset: true },
-                ocean_indien_nord:  { isDomain: 'ocean_indien_nord', reset: true }
+                ocean_indien_nord:  { isDomain: 'ocean_indien_nord', reset: true },
+
+                // 🌊 Points chauds Pacifique (Ouragans, Typhons & Cyclones)
+                philippines:        { isDomain: 'pacifique_ouest', latitude: 13.50, longitude: 124.00, scale: 2.80 },
+                taiwan:             { isDomain: 'pacifique_ouest', latitude: 23.80, longitude: 121.00, scale: 3.80 },
+                mexique_pacifique:  { isDomain: 'pacifique_est', latitude: 19.00, longitude: -106.00, scale: 2.50 },
+                hawai:              { isDomain: 'pacifique_est', latitude: 20.50, longitude: -157.00, scale: 3.20 },
+                nouvelle_caledonie: { isDomain: 'pacifique_sud', latitude: -21.30, longitude: 165.50, scale: 3.20 },
+                fidji:              { isDomain: 'pacifique_sud', latitude: -18.00, longitude: 178.00, scale: 3.20 }
             };
 
             var MODEL_FAMILY = {
@@ -7344,6 +7373,76 @@
             ctx.restore();
         }
 
+        // ponytail: Hit-testing précis des cyclones et phénomènes sur la carte pour masquage direct au clic
+        function findHitStorm(clientX, clientY) {
+            if (!cyclonesVisible || !activeCyclonesData || !activeCyclonesData.length || !manifest || !manifest.bounds || !viewport) {
+                return null;
+            }
+            var box = viewport.getBoundingClientRect();
+            var px = clientX - box.left;
+            var py = clientY - box.top;
+            if (px < 0 || px > box.width || py < 0 || py > box.height) {
+                return null;
+            }
+
+            var mapRect = computeMapRect(viewport.clientWidth, viewport.clientHeight);
+            var sf = 1.0;
+            var bestStorm = null;
+            var bestDist = 999999;
+
+            for (var i = 0; i < activeCyclonesData.length; i++) {
+                var storm = activeCyclonesData[i];
+                if (!isStormVisible(storm)) continue;
+
+                var sLat = Number(storm.lat !== undefined ? storm.lat : storm.latitude);
+                var sLon = Number(storm.lon !== undefined ? storm.lon : storm.longitude);
+                if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) continue;
+
+                var cProj = projectCoords(sLat, sLon);
+                if (cProj.u < -0.2 || cProj.u > 1.2 || cProj.v < -0.2 || cProj.v > 1.2) continue;
+
+                var cx = mapRect.x + cProj.u * mapRect.w;
+                var cy = mapRect.y + cProj.v * mapRect.h;
+
+                // 1. Clic sur le marqueur central / symbole tournant 🌀 (rayon généreux ~40px)
+                var distCenter = Math.hypot(px - cx, py - cy);
+                if (distCenter <= 40 * sf) {
+                    if (distCenter < bestDist) {
+                        bestDist = distCenter;
+                        bestStorm = storm;
+                    }
+                    continue;
+                }
+
+                // 2. Clic sur le cartouche de nom (sous le centre)
+                var nameOnlyText = (storm.type === 'cyclone' ? '🌀 ' : '⚠️ ') + getCleanStormName(storm, true);
+                var approxCardW = Math.max(120, nameOnlyText.length * 11 + 35) * sf;
+                var cardH = 38 * sf;
+                var cardX = cx - approxCardW / 2;
+                var cardY = cy + 18 * sf;
+
+                if (px >= cardX - 8 && px <= cardX + approxCardW + 8 && py >= cardY - 6 && py <= cardY + cardH + 10) {
+                    var distCard = Math.hypot(px - cx, py - (cardY + cardH / 2));
+                    if (distCard < bestDist) {
+                        bestDist = distCard;
+                        bestStorm = storm;
+                    }
+                    continue;
+                }
+
+                // 3. Clic sur le cartouche de pression (au-dessus du centre)
+                if (cycloneLabelMode === 'full' && Math.abs(px - cx) <= 60 * sf && py >= cy - 42 * sf && py <= cy) {
+                    var distP = Math.hypot(px - cx, py - (cy - 20 * sf));
+                    if (distP < bestDist) {
+                        bestDist = distP;
+                        bestStorm = storm;
+                    }
+                    continue;
+                }
+            }
+            return bestStorm;
+        }
+
         function drawLabels(width, height, pixelRatio) {
             if (!labelsContext || !manifest) {
                 return;
@@ -8505,11 +8604,25 @@
             hoverFrame = window.requestAnimationFrame(function () {
                 hoverFrame = null;
                 if (lastHover) {
-                    updateProbe(lastHover.x, lastHover.y);
+                    var hStorm = findHitStorm(lastHover.x, lastHover.y);
+                    if (hStorm) {
+                        viewport.style.cursor = 'pointer';
+                        var stormCat = hStorm.category || (hStorm.type === 'invest' ? 'En surveillance' : 'Phénomène');
+                        viewport.title = '🌀 ' + getCleanStormName(hStorm) + ' (' + stormCat + ') — Cliquer pour masquer de la carte';
+                        hideProbe();
+                    } else {
+                        viewport.style.cursor = '';
+                        viewport.removeAttribute('title');
+                        updateProbe(lastHover.x, lastHover.y);
+                    }
                 }
             });
         });
-        viewport.addEventListener('pointerleave', hideProbe);
+        viewport.addEventListener('pointerleave', function () {
+            viewport.style.cursor = '';
+            viewport.removeAttribute('title');
+            hideProbe();
+        });
 
         viewport.addEventListener('pointerdown', function (event) {
             if (event.target.closest('button, .amfm-diagram-popup, .amfm-probe-pinned')) {
@@ -8585,6 +8698,20 @@
                 var dt = Date.now() - tapStart.time;
                 tapStart = null;
                 if (!wasMultiTouch && Math.hypot(dx, dy) < 8 && dt < 600) {
+                    var hitStorm = findHitStorm(event.clientX, event.clientY);
+                    if (hitStorm) {
+                        var k = getStormKey(hitStorm);
+                        hiddenStorms.add(k);
+                        syncCycloneVisibilityUI();
+                        scheduleRender();
+                        checkCycloneAnimation();
+                        var cleanName = getCleanStormName(hitStorm);
+                        if (typeof setToolHint === 'function') {
+                            setToolHint('👁️ Phénomène ' + cleanName + ' masqué de la carte. Réactivable via le menu Phénomènes 🌀.');
+                            setTimeout(function () { setToolHint(''); }, 4500);
+                        }
+                        return;
+                    }
                     if (diagramActive || toolMode === 'diagram') {
                         openMeteogramAt(event.clientX, event.clientY);
                     }
@@ -8815,12 +8942,21 @@
                 item.className = 'amfm-cyclones-dd-item' + (isHidden ? ' is-storm-hidden' : '');
                 item.dataset.stormKey = sKey;
 
-                var isHurricane = (s.classification === 'HU' || (s.category && (s.category.indexOf('Ouragan') !== -1 || s.category.indexOf('Typhon') !== -1)));
-                var badgeLabel = isInvest ? '🟡 INVEST' : (isHurricane ? '🔴 OURAGAN' : '🔴 CYCLONE');
+                var isTyphoon = (s.basin === 'pacifique_ouest' || (s.category && s.category.indexOf('Typhon') !== -1));
+                var isHurricane = (s.classification === 'HU' || (s.category && s.category.indexOf('Ouragan') !== -1) || (s.basin === 'pacifique_est' && !isInvest));
+                var isStorm = (s.category && (s.category.indexOf('Tempête') !== -1 || s.category.indexOf('Tropical Storm') !== -1));
+                var badgeLabel = isInvest ? '🟡 INVEST' : (isTyphoon ? '🌀 TYPHON' : (isHurricane ? '🔴 OURAGAN' : (isStorm ? '🟢 TEMPÊTE' : '🔴 CYCLONE')));
                 var badgeClass = isInvest ? 'status-invest' : 'status-cyclone';
                 var windOrProb = isInvest ? (s.probability || 'En surveillance') : ('💨 ' + (s.wind_kmh || 0) + ' km/h');
                 var categoryStr = s.category || (isInvest ? 'Zone perturbée en surveillance' : 'Dépression tropicale');
                 var sourceStr = s.source || 'NOAA / NHC';
+                var basinLabel = 'Monde';
+                if (s.basin === 'pacifique_ouest') basinLabel = '🌊 Pacifique Ouest';
+                else if (s.basin === 'pacifique_est') basinLabel = '🌊 Pacifique Est';
+                else if (s.basin === 'pacifique_sud') basinLabel = '🌊 Pacifique Sud';
+                else if (s.basin === 'antilles') basinLabel = '🏝️ Atlantique';
+                else if (s.basin === 'ocean_indien') basinLabel = '🇷🇪 Océan Indien';
+                else if (s.basin === 'ocean_indien_nord') basinLabel = '🇮🇳 Océan Indien Nord';
 
                 item.innerHTML =
                     '<label class="amfm-cyclones-dd-toggle-wrap" title="' + (isHidden ? 'Afficher sur la carte' : 'Masquer de la carte') + '">' +
@@ -8835,7 +8971,7 @@
                         '</div>' +
                         '<div class="amfm-cyclones-dd-line2">' +
                             '<span class="amfm-cyclones-dd-cat" title="' + categoryStr + '">' + categoryStr + '</span>' +
-                            '<span class="amfm-cyclones-dd-source" title="Source : ' + sourceStr + '">' + sourceStr + '</span>' +
+                            '<span class="amfm-cyclones-dd-source" title="' + basinLabel + ' • Source : ' + sourceStr + '">' + basinLabel + '</span>' +
                         '</div>' +
                     '</div>' +
                     '<button type="button" class="amfm-cyclones-dd-btn-focus" title="Centrer et zoomer sur la carte">' +
@@ -8981,6 +9117,79 @@
                 });
             }
 
+            function updateSelectorsWithStorms(storms) {
+                if (!storms || !storms.length) return;
+                var basinMap = {};
+                for (var i = 0; i < storms.length; i++) {
+                    var s = storms[i];
+                    var b = s.basin || '';
+                    if (!basinMap[b]) basinMap[b] = [];
+                    basinMap[b].push(getCleanStormName(s));
+                }
+
+                var selRegion = document.getElementById('select-region');
+                if (selRegion) {
+                    var optPo = selRegion.querySelector('option[value="pacifique_ouest"]');
+                    var poStorms = basinMap['pacifique_ouest'] || [];
+                    if (optPo) {
+                        optPo.textContent = '🌀 Pacifique Ouest : Typhons (Philippines • Japon • Asie)' + (poStorms.length ? ' • 🔴 ' + poStorms.join(', ') : '');
+                    }
+                    var optPe = selRegion.querySelector('option[value="pacifique_est"]');
+                    var peStorms = basinMap['pacifique_est'] || [];
+                    if (optPe) {
+                        optPe.textContent = '🌀 Pacifique Est : Ouragans (Mexique • Hawaï)' + (peStorms.length ? ' • 🔴 ' + peStorms.join(', ') : '');
+                    }
+                    var optPs = selRegion.querySelector('option[value="pacifique_sud"]');
+                    var psStorms = basinMap['pacifique_sud'] || [];
+                    if (optPs) {
+                        optPs.textContent = '🌀 Pacifique Sud : Cyclones (Nouv.-Calédonie • Fidji)' + (psStorms.length ? ' • 🔴 ' + psStorms.join(', ') : '');
+                    }
+                    var optNio = selRegion.querySelector('option[value="ocean_indien_nord"]');
+                    var nioStorms = basinMap['ocean_indien_nord'] || [];
+                    if (optNio) {
+                        optNio.textContent = '🇮🇳 Océan Indien Nord (Bengale • Mer d\'Arabie)' + (nioStorms.length ? ' • 🔴 ' + nioStorms.join(', ') : '');
+                    }
+                    var optAnt = selRegion.querySelector('option[value="antilles"]');
+                    var antStorms = basinMap['antilles'] || [];
+                    if (optAnt) {
+                        optAnt.textContent = '🏝️ Atlantique & Caraïbes (Ouragans)' + (antStorms.length ? ' • 🔴 ' + antStorms.join(', ') : '');
+                    }
+                    var optIo = selRegion.querySelector('option[value="ocean_indien"]');
+                    var ioStorms = basinMap['ocean_indien'] || [];
+                    if (optIo) {
+                        optIo.textContent = '🇷🇪 Océan Indien Sud-Ouest (Réunion • Madagascar)' + (ioStorms.length ? ' • 🔴 ' + ioStorms.join(', ') : '');
+                    }
+                }
+
+                var selModel = document.getElementById('select-model');
+                if (selModel) {
+                    ['gfs_pacifique_ouest', 'ifs_pacifique_ouest', 'aifs_pacifique_ouest'].forEach(function(m) {
+                        var opt = selModel.querySelector('option[value="' + m + '"]');
+                        var po = basinMap['pacifique_ouest'] || [];
+                        if (opt && po.length) {
+                            var base = opt.textContent.split(' • 🔴')[0];
+                            opt.textContent = base + ' • 🔴 ' + po.join(', ');
+                        }
+                    });
+                    ['gfs_pacifique_est', 'ifs_pacifique_est', 'aifs_pacifique_est'].forEach(function(m) {
+                        var opt = selModel.querySelector('option[value="' + m + '"]');
+                        var pe = basinMap['pacifique_est'] || [];
+                        if (opt && pe.length) {
+                            var base = opt.textContent.split(' • 🔴')[0];
+                            opt.textContent = base + ' • 🔴 ' + pe.join(', ');
+                        }
+                    });
+                    ['gfs_pacifique_sud', 'ifs_pacifique_sud', 'aifs_pacifique_sud'].forEach(function(m) {
+                        var opt = selModel.querySelector('option[value="' + m + '"]');
+                        var ps = basinMap['pacifique_sud'] || [];
+                        if (opt && ps.length) {
+                            var base = opt.textContent.split(' • 🔴')[0];
+                            opt.textContent = base + ' • 🔴 ' + ps.join(', ');
+                        }
+                    });
+                }
+            }
+
             function processCycloneData(data) {
                 if (!data || !data.storms || data.storms.length === 0) {
                     bar.style.display = 'none';
@@ -8991,6 +9200,7 @@
                 window.activeCyclonesData = activeCyclonesData;
                 container.innerHTML = '';
                 renderCyclonesDropdown();
+                updateSelectorsWithStorms(data.storms);
 
                 // 1. Bouton "Tous les phénomènes (N)" dans le bandeau
                 var allBtn = document.getElementById('btn-open-cyclones-modal');

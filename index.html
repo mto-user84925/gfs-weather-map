@@ -176,6 +176,7 @@
         .amfm-export-wrap {
             position: relative;
             display: inline-flex;
+            flex-shrink: 0;
         }
         .amfm-export-dropdown {
             display: none;
@@ -192,6 +193,8 @@
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85);
             flex-direction: column;
             width: 320px;
+            max-width: calc(100vw - 20px);
+            box-sizing: border-box;
             gap: 8px;
         }
         .amfm-export-wrap.open .amfm-export-dropdown { display: flex; }
@@ -244,6 +247,23 @@
         .amfm-btn-tiktok-main:hover {
             box-shadow: 0 4px 20px rgba(0, 242, 254, 0.5);
             transform: translateY(-1px);
+        }
+        .amfm-export-dropdown .amfm-btn-download {
+            width: 100% !important;
+            min-width: 0 !important;
+            height: 36px !important;
+            padding: 0 8px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            box-sizing: border-box !important;
+        }
+        .amfm-export-dropdown .amfm-btn-download span,
+        .amfm-export-dropdown .amfm-btn-tiktok-main span {
+            display: inline !important;
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
         }
         .amfm-export-tiktok-box {
             background: rgba(255, 255, 255, 0.04);
@@ -613,6 +633,10 @@
             background-repeat: no-repeat;
             background-position: right 8px center;
             padding-right: 22px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
+            box-sizing: border-box;
         }
         select:hover, select:focus-visible {
             border-color: var(--amfm-border-focus);
@@ -629,26 +653,38 @@
 
         .amfm-select-layer {
             flex: 1.1;
-            min-width: 135px;
-            max-width: 180px;
+            min-width: 125px;
+            max-width: 175px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .amfm-select-model {
             flex: 0.9;
-            min-width: 120px;
-            max-width: 155px;
+            min-width: 110px;
+            max-width: 145px;
             background: rgba(0, 119, 255, 0.18);
             border-color: rgba(0, 119, 255, 0.55);
             font-weight: 800;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .amfm-select-region {
             flex: 0.8;
-            min-width: 100px;
+            min-width: 95px;
             max-width: 125px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
         .amfm-select-sea {
             flex: 0.7;
-            min-width: 90px;
+            min-width: 85px;
             max-width: 110px;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            overflow: hidden;
         }
 
         /* Boutons d'Action compacts */
@@ -1504,6 +1540,28 @@
             margin-top: 8px;
         }
 
+        .amfm-tool-hint-toast {
+            position: absolute;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(15, 23, 42, 0.94);
+            color: #f8fafc;
+            font-size: 12.5px;
+            font-weight: 600;
+            padding: 8px 18px;
+            border-radius: 9999px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            z-index: 1000;
+            pointer-events: none;
+            backdrop-filter: blur(8px);
+            white-space: nowrap;
+        }
+        .amfm-tool-hint-toast[hidden] {
+            display: none !important;
+        }
+
         /* 🏷️ CARTOUCHE D'INFORMATION DIRECTEMENT SUR LA CARTE */
         .amfm-map-badge {
             position: absolute;
@@ -1594,55 +1652,12 @@
             }
         }
 
-        /* Masquage des libellés texte des boutons sur les écrans ≤1400px (laptop standard) */
-        @media (max-width: 1400px) {
-            .amfm-btn-toggle span,
-            .amfm-btn-download span {
-                display: none !important;
-            }
-            .amfm-btn-toggle,
-            .amfm-btn-download {
-                width: 36px !important;
-                min-width: 36px !important;
-                padding: 0 !important;
-            }
-        }
-
-        /* 📱 RESPONSIVE & COMPACT NAVIGATION BAR - Uniquement sur petits écrans (<= 1024px) */
-        @media (max-width: 1024px) {
-            .amfm-btn-download span,
-            .amfm-btn-toggle span,
-            .amfm-btn-commune span {
-                display: none !important;
-            }
-            .amfm-btn-download,
-            .amfm-btn-toggle,
-            .amfm-btn-icon {
-                width: 38px !important;
-                min-width: 38px !important;
-                height: 38px !important;
-                padding: 0 !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                border-radius: 8px !important;
-                box-sizing: border-box !important;
-            }
-            .amfm-select-sea {
-                max-width: 110px;
-                font-size: 11px;
-            }
-        }
+        /* 📱 RESPONSIVE NAVBAR & COMPACT CONTROLS */
         #amfm-logo-action-btn {
             display: none !important;
         }
         .amfm-headline {
             display: none !important;
-        }
-        .amfm-select-sea {
-            max-width: 145px;
-            font-size: 11.5px;
-            height: 38px !important;
         }
         .amfm-navbar {
             gap: 8px;
@@ -1654,26 +1669,50 @@
             gap: 4px;
         }
 
-        @media (max-width: 1650px) {
+        /* Masquage des libellés texte des boutons et compactage sur écrans ≤1680px (laptops, tablettes, multi-écrans) */
+        @media (max-width: 1680px) {
+            .amfm-btn-toggle span,
             .amfm-btn-arome-link span,
-            .amfm-btn-arome-link i.fa-arrow-up-right-from-square {
+            .amfm-btn-arome-link i.fa-arrow-up-right-from-square,
+            #amfm-export-toggle span,
+            #amfm-export-toggle i.fa-chevron-down {
                 display: none !important;
             }
-            .amfm-btn-arome-link {
-                width: 38px !important;
-                min-width: 38px !important;
-                height: 38px !important;
+            .amfm-btn-toggle,
+            .amfm-btn-arome-link,
+            #amfm-export-toggle {
+                width: 36px !important;
+                min-width: 36px !important;
                 padding: 0 !important;
-                display: inline-flex !important;
-                align-items: center !important;
                 justify-content: center !important;
-                border-radius: 8px !important;
             }
-            .amfm-title-text {
-                display: none !important;
-            }
+            .amfm-title-text,
             .amfm-badge {
                 display: none !important;
+            }
+            .amfm-search-wrapper {
+                width: 125px;
+                min-width: 85px;
+            }
+            .amfm-select-sea {
+                max-width: 110px;
+                font-size: 11px;
+            }
+        }
+
+        /* Ajustements petits écrans (<= 1024px) */
+        @media (max-width: 1024px) {
+            .amfm-btn-commune span {
+                display: none !important;
+            }
+            .amfm-btn-commune {
+                width: 36px !important;
+                min-width: 36px !important;
+                padding: 0 !important;
+            }
+            .amfm-search-wrapper {
+                width: 95px;
+                min-width: 75px;
             }
         }
         @media (max-width: 1320px) {
@@ -2997,18 +3036,18 @@
                             <option value="aifs_ocean_indien">🇷🇪 ECMWF AIFS Océan Indien (0,25°)</option>
                             <option value="ifs_etats_unis">🇺🇸 ECMWF IFS États-Unis (0,25°)</option>
                             <option value="aifs_etats_unis">🇺🇸 ECMWF AIFS États-Unis (0,25°)</option>
-                            <option value="gfs_pacifique_est">🌀 GFS Pacifique Est &amp; Hawaï (0,25°)</option>
-                            <option value="gfs_pacifique_ouest">🌀 GFS Pacifique Ouest / Typhons (0,25°)</option>
+                            <option value="gfs_pacifique_ouest">🌀 GFS Pacifique Ouest : Typhons (Philippines • Japon • Chine)</option>
+                            <option value="ifs_pacifique_ouest">🌀 ECMWF IFS Pacifique Ouest : Typhons (Physique)</option>
+                            <option value="aifs_pacifique_ouest">🌀 ECMWF AIFS Pacifique Ouest : Typhons (IA)</option>
+                            <option value="gfs_pacifique_est">🌀 GFS Pacifique Est : Ouragans (Mexique • Hawaï)</option>
+                            <option value="ifs_pacifique_est">🌀 ECMWF IFS Pacifique Est : Ouragans (Physique)</option>
+                            <option value="aifs_pacifique_est">🌀 ECMWF AIFS Pacifique Est : Ouragans (IA)</option>
+                            <option value="gfs_pacifique_sud">🌀 GFS Pacifique Sud : Cyclones (Nouv.-Calédonie • Fidji)</option>
+                            <option value="ifs_pacifique_sud">🌀 ECMWF IFS Pacifique Sud : Cyclones (Physique)</option>
+                            <option value="aifs_pacifique_sud">🌀 ECMWF AIFS Pacifique Sud : Cyclones (IA)</option>
                             <option value="gfs_ocean_indien_nord">🌊 GFS Bengale &amp; Mer d'Arabie (0,25°)</option>
-                            <option value="gfs_pacifique_sud">🏝️ GFS Pacifique Sud &amp; Océanie (0,25°)</option>
-                            <option value="ifs_pacifique_est">🌀 ECMWF IFS Pacifique Est (0,25°)</option>
-                            <option value="ifs_pacifique_ouest">🌀 ECMWF IFS Pacifique Ouest (0,25°)</option>
                             <option value="ifs_ocean_indien_nord">🌊 ECMWF IFS Bengale &amp; Arabie (0,25°)</option>
-                            <option value="ifs_pacifique_sud">🏝️ ECMWF IFS Pacifique Sud &amp; Océanie (0,25°)</option>
-                            <option value="aifs_pacifique_est">🌀 ECMWF AIFS Pacifique Est (0,25°)</option>
-                            <option value="aifs_pacifique_ouest">🌀 ECMWF AIFS Pacifique Ouest (0,25°)</option>
                             <option value="aifs_ocean_indien_nord">🌊 ECMWF AIFS Bengale &amp; Arabie (0,25°)</option>
-                            <option value="aifs_pacifique_sud">🏝️ ECMWF AIFS Pacifique Sud &amp; Océanie (0,25°)</option>
                         </optgroup>
                     </select>
 
@@ -3133,13 +3172,21 @@
                             <option value="inde" class="opt-world">🇮🇳 Inde</option>
                             <option value="russie" class="opt-eu">🇷🇺 Russie (Europe &amp; Oural)</option>
                         </optgroup>
-                        <optgroup label="🌀 Bassins Cycloniques &amp; Outre-Mer" id="optgroup-world">
-                            <option value="antilles" class="opt-world">🏝️ Atlantique Tropical &amp; Caraïbes</option>
-                            <option value="ocean_indien" class="opt-world">🇷🇪 Océan Indien Sud-Ouest (Réunion • Madagascar • Maurice)</option>
-                            <option value="pacifique_ouest" class="opt-world">🌀 Pacifique Nord-Ouest (Typhons • Asie)</option>
-                            <option value="pacifique_sud" class="opt-world">🇳🇨 Pacifique Sud &amp; Océanie (Nouvelle-Calédonie • Fidji)</option>
-                            <option value="pacifique_est" class="opt-world">🌊 Pacifique Nord-Est &amp; Hawaï</option>
+                        <optgroup label="🌀 Bassins Cycloniques Mondiaux" id="optgroup-world">
+                            <option value="antilles" class="opt-world">🏝️ Atlantique &amp; Caraïbes (Ouragans)</option>
+                            <option value="ocean_indien" class="opt-world">🇷🇪 Océan Indien Sud-Ouest (Réunion • Madagascar)</option>
                             <option value="ocean_indien_nord" class="opt-world">🇮🇳 Océan Indien Nord (Bengale • Mer d'Arabie)</option>
+                        </optgroup>
+                        <optgroup label="🌊 Pacifique (Ouragans, Typhons &amp; Tempêtes)" id="optgroup-pacific">
+                            <option value="pacifique_ouest" class="opt-world">🌀 Pacifique Ouest : Typhons (Philippines • Japon • Taïwan • Chine)</option>
+                            <option value="pacifique_est" class="opt-world">🌀 Pacifique Est : Ouragans (Mexique • Hawaï • Basse-Californie)</option>
+                            <option value="pacifique_sud" class="opt-world">🌀 Pacifique Sud : Cyclones (Nouvelle-Calédonie • Vanuatu • Fidji)</option>
+                            <option value="philippines" class="opt-world">🇵🇭 Philippines &amp; Mer des Philippines (Typhons)</option>
+                            <option value="taiwan" class="opt-world">🇹🇼 Taïwan &amp; Mer de Chine (Typhons)</option>
+                            <option value="mexique_pacifique" class="opt-world">🇲🇽 Mexique Côte Pacifique (Basse-Californie / Acapulco)</option>
+                            <option value="hawai" class="opt-world">🌺 Hawaï &amp; Pacifique Central (Ouragans)</option>
+                            <option value="nouvelle_caledonie" class="opt-world">🇳🇨 Nouvelle-Calédonie &amp; Loyauté (Cyclones)</option>
+                            <option value="fidji" class="opt-world">🇫🇯 Fidji &amp; Vanuatu (Cyclones Océanie)</option>
                         </optgroup>
                     </select>
 
