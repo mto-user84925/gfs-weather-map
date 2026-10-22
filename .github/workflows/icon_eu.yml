@@ -145,9 +145,18 @@ jobs:
             echo "Tranche hors limite ($MAX_HOURS h) — ignoré"
             exit 0
           fi
+          # ⚠️ Les DEUX domaines sont nécessaires : le sélecteur de l'interface
+          # propose « ICON-EU Europe (7 km) » (output/icon_eu) ET « ICON-EU
+          # France (7 km) » (output/icon_eu_france). Seul `--domain france`
+          # était rendu → le modèle Europe renvoyait un 404 pour tous les
+          # utilisateurs.
+          # `--domain both` rend les deux depuis les MÊMES GRIB déjà
+          # téléchargés (cache `fields_cache` dans collect_lead) : aucune
+          # bande passante ni temps CPU dupliqué. Le découpage en tranches
+          # (--lead-min/--lead-max) est respecté pour les deux domaines.
           python -u pipeline/icon_open_data.py \
             --max-hours "$MAX_HOURS" \
-            --domain france \
+            --domain both \
             --lead-min "${{ matrix.lead_min }}" \
             --lead-max "${{ matrix.lead_max }}"
       - name: Upload chunk (${{ matrix.id }})

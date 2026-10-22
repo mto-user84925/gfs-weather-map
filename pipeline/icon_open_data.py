@@ -21,6 +21,7 @@ import time
 import uuid
 import datetime
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -86,59 +87,104 @@ def compute_leads(max_hours=MAX_LEAD):
 
 
 def _fetch(url, retries=3):
+    """Télécharge un GRIB DWD.
+
+    Piège : le serveur DWD renvoie parfois HTTP 200 avec une PAGE D'ERREUR
+    HTML de ~198 octets (et non un GRIB) — typiquement pour une échéance pas
+    encore publiée. Le test `len(r.content) > 500` laissait passer les
+    fichiers bz2 valides (petits) tout en acceptant ces pages d'erreur.
+    On valide donc explicitement la signature bz2 ('BZh') / GRIB ('GRIB').
+    """
     last = None
     for attempt in range(1, retries + 1):
         try:
             r = requests.get(url, headers=HEADERS, timeout=60, verify=True)
             if r.status_code == 200 and len(r.content) > 500:
                 try:
-                    return bz2.decompress(r.content)
+                    payload = bz2.decompress(r.content)
                 except Exception:
-                    # fichier déjà décompressé
-                    return r.content
-            last = "HTTP %s" % r.status_code
+                    payload = r.content
+                # Un GRIB2 commence par "GRIB" ; sinon c'est une page d'erreur.
+                if payload[:4] == b"GRIB":
+                    return payload
+                last = "contenu non-GRIB (%d o)" % len(payload)
+            else:
+                last = "HTTP %s" % r.status_code
         except Exception as e:
             last = "%s" % e
         time.sleep(2 * attempt)
     raise RuntimeError("Téléchargement %s impossible (%s)" % (url, last))
 
 
+# ── Verrou de décodage ───────────────────────────────────────────────────────
+# La bibliothèque C ecCodes (via cfgrib) n'est PAS sûre en décodage concurrent
+# dans le même process : deux threads qui ouvrent un GRIB en parallèle font
+# planter l'interpréteur (violation d'accès 0xC0000005 / assertion
+# « boot.def » dans grib_context.cc), SANS exception Python attrapable.
+# Reproduit sur Windows : 8 threads → crash ; séquentiel → OK.
+# Le TÉLÉCHARGEMENT reste parallèle (8 workers), seul le décodage est
+# sérialisé : le réseau reste le goulot d'étranglement, l'impact est minime.
+_DECODE_LOCK = threading.Lock()
+
+
 def _decode_grib(grib_bytes, want_var=None, want_level=None):
     """Décode un GRIB ICON (1 variable) → (values 2D, lat 1D, lon 1D) ou None."""
     import cfgrib
-    # Fichier temporel UNIQUE par appel : les 8 threads du pool décodent en
-    # parallèle — un nom fixe provoquerait des FileNotFoundError/corruptions.
     tmp = os.path.join(tempfile.gettempdir(),
                        "icon_tmp_%s.grib2" % uuid.uuid4().hex[:12])
     with open(tmp, "wb") as f:
         f.write(grib_bytes)
+    ds = None
     try:
-        ds = cfgrib.open_dataset(tmp)
-        v = list(ds.data_vars)[0]
-        # isobaricInhPa DIMENSION = fichier multi-niveaux → slicer le niveau voulu.
-        # Coordonnée scalaire (fichier par niveau, ex. 850_T) = déjà 2D.
-        if want_level is not None and "isobaricInhPa" in ds[v].dims:
-            levs = np.atleast_1d(ds[v].isobaricInhPa.values)
-            idx = np.argmin(np.abs(levs - want_level))
-            return (ds[v].values[idx].astype(np.float32),
-                    ds.latitude.values, ds.longitude.values)
-        return (ds[v].values.astype(np.float32),
-                ds.latitude.values, ds.longitude.values)
+        # Section critique : un seul décodage eccodes à la fois.
+        with _DECODE_LOCK:
+            ds = cfgrib.open_dataset(tmp)
+            v = list(ds.data_vars)[0]
+            # isobaricInhPa DIMENSION = fichier multi-niveaux → slicer le niveau voulu.
+            # Coordonnée scalaire (fichier par niveau, ex. 850_T) = déjà 2D.
+            if want_level is not None and "isobaricInhPa" in ds[v].dims:
+                levs = np.atleast_1d(ds[v].isobaricInhPa.values)
+                idx = np.argmin(np.abs(levs - want_level))
+                values = ds[v].values[idx].astype(np.float32)
+            else:
+                values = ds[v].values.astype(np.float32)
+            lats = ds.latitude.values.copy()
+            lons = ds.longitude.values.copy()
+        return (values, lats, lons)
     except Exception:
         return None
     finally:
+        # Ferme le dataset AVANT de supprimer le fichier : sinon les descripteurs
+        # restent ouverts (le fichier .idx est recréé/supprimé par cfgrib) et
+        # on accumule des handles sur les runners de CI.
+        if ds is not None:
+            try:
+                ds.close()
+            except Exception:
+                pass
         try:
             os.remove(tmp)
         except OSError:
             pass
+        # cfgrib laisse un index à côté du fichier temporaire.
+        try:
+            os.remove(tmp + ".5b7b6.idx")
+        except OSError:
+            pass
 
 
-def collect_lead(run_dt, lead, light=False):
+def collect_lead(run_dt, lead, light=False, fields_cache=None):
     """Télécharge et décode TOUTES les variables d'une échéance → dict canonique.
 
     light=True : uniquement GUST (vmax_10m) + APCP (tot_prec) — échauffement
     des couches cumulatives sans télécharger les 16 autres variables.
+
+    fields_cache : dict optionnel {lead: champs complets déjà téléchargés}.
+    Permet de rendre le domaine Europe PUIS France en ne téléchargeant les
+    GRIB qu'une seule fois (chaque échéance fait ~18 requêtes HTTP).
     """
+    if fields_cache is not None and lead in fields_cache and not light:
+        return fields_cache[lead]
     day = run_dt.strftime("%Y%m%d%H")
     hh = "%02d" % run_dt.hour
     lead3 = "%03d" % lead
@@ -224,7 +270,14 @@ def render_lead_par(fields, lead, run_dt, domain, out_dir):
         val, lat, lon = field
         if convert is not None:
             val = convert(val)
-        return domain.regrid(val, lat, lon)
+        try:
+            return domain.regrid(val, lat, lon)
+        except MemoryError:
+            # MemoryError hérite de Exception mais PAS de RuntimeError : sans
+            # ce garde-fou il remontait jusqu'à run_all et tuait le rendu du
+            # second domaine (Europe rendu, France jamais produit).
+            log("!! regrid(%s) : mémoire insuffisante — couche ignorée" % domain.name)
+            return None
 
     def save(name, data):
         dst = os.path.join(out_dir, name, "%03d.webp" % lead)
@@ -451,24 +504,43 @@ def run_all(max_hours=MAX_LEAD, domain="europe", lead_min=0, lead_max=None):
     all_fields = {}
     for lh in chunk_leads:
         try:
-            all_fields[lh] = collect_lead(run_dt, lh)
+            all_fields[lh] = collect_lead(run_dt, lh, fields_cache=all_fields)
             log("  H+%03d : %d champs" % (lh, len(all_fields[lh])))
         except Exception as e:
             log("!! H+%03d ignoré (%s)" % (lh, e))
 
     base = os.path.join(BASE_DIR, "output")
-    if domain in ("both", "europe"):
-        render_domain(all_fields, run_dt, EUROPE,
-                      os.path.join(base, "icon_eu", "maps"),
-                      "ICON-EU 7 km Europe", "7 km (~0.0625°)",
+    # --domain both : les GRIB ne sont téléchargés qu'une fois (fields_cache
+    # = all_fields alimenté au fil de l'eau ci-dessus), puis reprojetés sur
+    # les deux grilles. C'est ce mode qui est requis par le workflow ICON-EU :
+    # l'interface expose « ICON-EU Europe » ET « ICON-EU France ».
+    #
+    # ⚠️ Chaque domaine a SA PROPRE étape d'échauffement (state_warm) : cet
+    # état contient des champs DÉJÀ reprojetés sur la grille du domaine
+    # (max_gust, cum_precip). Le partager entre Europe et France mélangeait
+    # deux grilles 2200×1640 différentes → cumuls faux sur le 2e domaine.
+    for dom_key, dom_name, dom_obj, dom_label in (
+        ("europe", "icon_eu", EUROPE, "ICON-EU 7 km Europe"),
+        ("france", "icon_eu_france", FRANCE, "ICON-EU 7 km France"),
+    ):
+        if domain not in ("both", dom_key):
+            continue
+        state_warm = {"max_gust": None, "cum_precip": None}
+        for lh in prior:
+            try:
+                fields = collect_lead(run_dt, lh, light=True, fields_cache=all_fields)
+                warmup_from_cached(fields, dom_obj, state_warm)
+            except Exception:
+                pass
+        render_domain(all_fields, run_dt, dom_obj,
+                      os.path.join(base, dom_name, "maps"),
+                      dom_label, "7 km (~0.0625°)",
                       lead_min=lead_min, lead_max=lead_max,
                       init_state=state_warm)
-    if domain in ("both", "france"):
-        render_domain(all_fields, run_dt, FRANCE,
-                      os.path.join(base, "icon_eu_france", "maps"),
-                      "ICON-EU 7 km France", "7 km (~0.0625°)",
-                      lead_min=lead_min, lead_max=lead_max,
-                      init_state=state_warm)
+        # Libère la mémoire entre les deux domaines (les tableaux reprojetés
+        # 2200×1640 des 73 échéances ne servent qu'à un domaine).
+        import gc
+        gc.collect()
     print("[ICON] Pipeline terminé avec succès.", flush=True)
 
 

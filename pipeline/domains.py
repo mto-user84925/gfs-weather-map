@@ -179,8 +179,17 @@ class Domain:
             v = (ny - mercator_y(lat)) / (ny - sy)
         return (u * (self.width - 1), v * (self.height - 1))
 
-    def regrid(self, data, src_lats, src_lons):
-        """Ré-échantillonne un champ natif (lat/lon) sur la grille du domaine."""
+    def regrid(self, data, src_lats, src_lons, row_chunk=192):
+        """Ré-échantillonne un champ natif (lat/lon) sur la grille du domaine.
+
+        Le calcul est fait PAR BLOCS DE LIGNES. scipy.regular_grid_interpolator
+        consomme ~6 copies temporaires de la grille complète (2200×1640 =
+        3,6 M points → ~22 Mo/série) ; en interpolant les 9+ variables d'une
+        échéance simultanément l'empreinte atteignait plusieurs centaines de
+        Mo et provoquait des numpy._core._exceptions._ArrayMemoryError sur les
+        runners limités en RAM. Le découpage en bandes réduit cette empreinte
+        à quelques Mo sans changer le résultat (interpolation exacte, identique).
+        """
         from scipy.interpolate import RegularGridInterpolator
 
         data = np.asarray(data, dtype=np.float32)
@@ -200,23 +209,28 @@ class Domain:
         if src_lons[0] > src_lons[-1]:
             src_lons = src_lons[::-1]
             data = data[:, ::-1]
-        
+
         # Si la grille source est globale (GFS/AIFS), clamping pour éviter les bords gris ; si régionale (EURAT01/ICON), NaN hors domaine
         is_global = (src_lons.min() <= -170.0 and src_lons.max() >= 170.0)
-        if is_global:
-            pts_lat = np.clip(self.lats.ravel(), src_lats[0], src_lats[-1])
-            pts_lon = np.clip(self.lons.ravel(), src_lons[0], src_lons[-1])
-            fill_val = None
-        else:
-            pts_lat = self.lats.ravel()
-            pts_lon = self.lons.ravel()
-            fill_val = np.nan
+        fill_val = None if is_global else np.nan
 
-        pts = np.column_stack((pts_lat, pts_lon))
         interp = RegularGridInterpolator(
             (src_lats, src_lons), data, method="linear",
             bounds_error=False, fill_value=fill_val)
-        return interp(pts).reshape((self.height, self.width)).astype(np.float32)
+
+        out = np.empty((self.height, self.width), dtype=np.float32)
+        for y0 in range(0, self.height, row_chunk):
+            y1 = min(y0 + row_chunk, self.height)
+            if is_global:
+                pts_lat = np.clip(self.lats[y0:y1], src_lats[0], src_lats[-1])
+                pts_lon = np.clip(self.lons[y0:y1], src_lons[0], src_lons[-1])
+            else:
+                pts_lat = self.lats[y0:y1]
+                pts_lon = self.lons[y0:y1]
+            pts = np.column_stack((pts_lat.ravel(), pts_lon.ravel()))
+            out[y0:y1] = interp(pts).reshape(y1 - y0, self.width)
+            del pts
+        return out
 
 
 # Instances partagées
