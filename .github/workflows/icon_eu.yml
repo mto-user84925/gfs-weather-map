@@ -20,7 +20,9 @@ permissions:
 
 concurrency:
   group: "icon-eu-build"
-  cancel-in-progress: true
+  # false : un run concurrent ATTEND au lieu d annuler le run en cours.
+  # Avec true, un declenchement pendant un run tuait jusqu a 1h40 de calcul.
+  cancel-in-progress: false
 
 jobs:
   build-fond:
