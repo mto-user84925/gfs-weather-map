@@ -24,7 +24,9 @@ permissions:
 
 concurrency:
   group: "gfs-build"
-  cancel-in-progress: true
+  # false : un run concurrent ATTEND au lieu d annuler le run en cours.
+  # Avec true, un declenchement pendant un run tuait jusqu a 1h40 de calcul.
+  cancel-in-progress: false
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOB 1 — Fonds de carte partagés
