@@ -138,20 +138,30 @@
             width: auto;
             display: block;
         }
+        /* Alignement vertical : sans line-height fixe, le texte
+           (hauteur de ligne ~1.4) se centrait differemment de l'image
+           de 24 px, d'ou un decalage de 3 px constate. */
         .amfm-title-text {
             display: none !important;
+            line-height: 1;
+            align-self: center;
         }
         .amfm-badge {
             display: none !important;
+            line-height: 1;
+            align-self: center;
         }
 
         /* Bloc Centre : Sélecteurs de Calque et Région */
+        /* flex-basis 0 : le groupe ne reclame que la place DISPONIBLE.
+           Avec `flex: 1` + max-width 780px, l'espace libre s'accumulait
+           en un trou de 179 a 527 px au milieu de la barre. */
         .amfm-nav-controls {
             display: flex;
             align-items: center;
             gap: 6px;
-            flex: 1;
-            max-width: 780px;
+            flex: 1 1 0;
+            min-width: 0;
             justify-content: flex-start;
         }
 
@@ -1610,7 +1620,11 @@
             font-size: 11.5px;
             font-weight: 800;
             padding: 0 10px;
-            height: 32px;
+            /* 36 px comme tous les autres controles : a 32 px ce bouton
+               etait le SEUL de hauteur differente, d'ou un decalage
+               vertical de 3 px (top=19 alors que les selects sont a 17). */
+            height: 36px;
+            align-self: center;
             border-radius: 7px;
             display: inline-flex;
             align-items: center;
@@ -1732,12 +1746,22 @@
                 gap: 6px !important;
                 padding: 6px 10px !important;
             }
+            /* Les selecteurs (modele / calque / zone) restent sur la
+               PREMIERE ligne, a gauche : `order: 3` les rejetait apres
+               les boutons d'action, d'ou l'impression de desordre. */
             .amfm-nav-controls {
-                order: 3 !important;
-                width: 100% !important;
-                max-width: 100% !important;
+                order: 1 !important;
+                width: auto !important;
+                max-width: none !important;
+                flex: 1 1 auto !important;
                 justify-content: flex-start !important;
                 gap: 6px !important;
+                min-width: 0 !important;
+            }
+            .amfm-nav-brand { order: 0 !important; }
+            .amfm-nav-actions {
+                order: 2 !important;
+                margin-left: auto !important;
             }
             .amfm-select-layer,
             .amfm-select-model,
@@ -3765,11 +3789,11 @@
     })();
     </script>
 
-    <script src="js/palettes.js?v=20261022-ui1"></script>
+    <script src="js/palettes.js?v=20261023-ui3"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="js/regions.js?v=20261022-ui1"></script>
-    <script src="js/arome-map.js?v=20261022-ui1"></script>
+    <script src="js/regions.js?v=20261023-ui3"></script>
+    <script src="js/arome-map.js?v=20261023-ui3"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";
