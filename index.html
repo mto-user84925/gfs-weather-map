@@ -165,144 +165,6 @@
             justify-content: flex-start;
         }
 
-
-        /* ═══════════════════════════════════════════════════════════════
-           Menus deroulants de la navbar (« Affichage », « Outils »)
-           Objectif : supprimer les boutons-icones MUETS (globe, ecran TV
-           duplique, cible) au profit de libelles explicites, et raccourcir
-           la barre. Les elements conservent leurs data-attributs : le JS
-           existant continue de fonctionner sans modification.
-           ═══════════════════════════════════════════════════════════════ */
-        .amfm-dd-wrap {
-            position: relative;
-            flex: 0 0 auto;
-            /* Le panneau est en position:absolute : il ne doit PAS compter
-               dans la largeur intrinseque du groupe, sinon il force le
-               retour a la ligne de la navbar (constate : hauteur 52 -> 102). */
-            contain: layout style;
-        }
-        .amfm-dd-panel {
-            max-width: calc(100vw - 32px);
-        }
-        .amfm-btn-dd {
-            gap: 6px;
-        }
-        .amfm-btn-dd .amfm-dd-caret {
-            font-size: 10px;
-            opacity: 0.75;
-            transition: transform 0.18s ease;
-        }
-        .amfm-dd-wrap.is-open .amfm-btn-dd {
-            background: rgba(0, 210, 255, 0.22);
-            border-color: var(--amfm-accent);
-        }
-        .amfm-dd-wrap.is-open .amfm-dd-caret {
-            transform: rotate(180deg);
-        }
-        .amfm-dd-panel {
-            position: absolute;
-            top: calc(100% + 6px);
-            left: 0;
-            z-index: 400;
-            min-width: 250px;
-            padding: 6px;
-            background: rgba(11, 18, 32, 0.98);
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-            border: 1px solid var(--amfm-border);
-            border-radius: 12px;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
-            display: none;
-        }
-        .amfm-dd-wrap.is-open .amfm-dd-panel {
-            display: block;
-        }
-        .amfm-dd-title {
-            font-size: 10.5px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            color: var(--amfm-muted);
-            padding: 6px 10px 4px;
-        }
-        .amfm-dd-sep {
-            height: 1px;
-            background: rgba(255, 255, 255, 0.08);
-            margin: 5px 6px;
-        }
-        .amfm-dd-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            width: 100%;
-            padding: 9px 10px;
-            border: 0;
-            border-radius: 8px;
-            background: transparent;
-            color: var(--amfm-text);
-            font: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            text-align: left;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-        .amfm-dd-item:hover {
-            background: rgba(0, 210, 255, 0.16);
-        }
-        .amfm-dd-item > i:first-child {
-            width: 16px;
-            text-align: center;
-            color: rgba(255, 255, 255, 0.72);
-        }
-        .amfm-dd-item > span {
-            flex: 1;
-        }
-        .amfm-dd-check {
-            font-size: 11px;
-            color: var(--amfm-accent);
-            opacity: 0;
-        }
-        .amfm-dd-item.is-on .amfm-dd-check {
-            opacity: 1;
-        }
-        .amfm-dd-item.is-on {
-            color: #ffffff;
-        }
-
-        /* Les menus deroulants ne doivent pas elargir la barre : le panneau
-           est en position absolue, donc hors flux, et le bouton ne garde
-           que son libelle. */
-        .amfm-nav-actions {
-            flex-wrap: nowrap;
-            min-width: 0;
-        }
-        .amfm-nav-actions .amfm-btn-dd {
-            width: auto !important;
-            min-width: 0 !important;
-        }
-        /* Sous 1600 px (MacBook Air 1470/1440/1280), la barre manque de
-           largeur : marque 196 + selecteurs 784 + actions 508 = 1488 px pour
-           1446 disponibles, d'ou un passage sur 2 lignes a 102 px de haut.
-           On compacte les SELECTEURS (la partie elastique) plutot que de
-           renvoyer les actions a la ligne : la barre reste sur UNE ligne. */
-        @media (max-width: 1600px) {
-            .amfm-dd-item { font-size: 12.5px; padding: 8px 9px; }
-            .amfm-btn-dd span { font-size: 11.5px !important; }
-            .amfm-nav-controls { flex: 1 1 0 !important; min-width: 0 !important; }
-            .amfm-select-model,
-            .amfm-select-layer,
-            .amfm-select-region {
-                flex: 1 1 0 !important;
-                min-width: 0 !important;
-                font-size: 11.5px !important;
-                padding-left: 7px !important;
-                padding-right: 22px !important;
-            }
-            .amfm-nav-sep { display: none !important; }
-            .amfm-search-wrapper { width: 110px !important; }
-        }
-
         /* Bloc Droite : Exports + Outils */
         .amfm-nav-actions {
             display: flex;
@@ -1891,14 +1753,10 @@
                 order: 1 !important;
                 width: auto !important;
                 max-width: none !important;
-                /* flex-basis 0 : avec uto, la base = largeur du contenu et
-                   le groupe refusait de se reduire, forcant la navbar sur
-                   2 lignes (h=102 au lieu de 52). */
-                flex: 1 1 0 !important;
+                flex: 1 1 auto !important;
                 justify-content: flex-start !important;
                 gap: 6px !important;
                 min-width: 0 !important;
-                overflow: hidden !important;
             }
             .amfm-nav-brand { order: 0 !important; }
             .amfm-nav-actions {
@@ -3373,29 +3231,27 @@
                 <!-- Droite : Outils Carte + Téléchargements (HD & TikTok) + Outils -->
                 <div class="amfm-nav-actions">
                     <!-- Outils d'affichage Carte (Villes, Valeurs, Lignes TV) -->
-                    <!-- Menu Affichage : regroupe les toggles de lecture de la carte
-                         (etaient 3 boutons separees, dont un conflit d'icone) -->
-                    <div class="amfm-dd-wrap" id="amfm-dd-affichage">
-                        <button type="button" class="amfm-btn amfm-btn-dd" id="amfm-dd-affichage-toggle"
-                                aria-haspopup="true" aria-expanded="false"
-                                title="Afficher ou masquer : villes, valeurs chiffrees, lignes TV et cartouches de zones">
-                            <i class="fa-solid fa-layer-group" aria-hidden="true"></i> <span>Affichage</span>
-                            <i class="fa-solid fa-chevron-down amfm-dd-caret" aria-hidden="true"></i>
+                    <div class="amfm-btn-group amfm-tools-primary" data-amfm-group="tools">
+                        <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cities aria-pressed="true" aria-label="Afficher ou masquer les villes" title="Afficher/Masquer les villes">
+                            <i class="fa-solid fa-city" aria-hidden="true"></i> <span>Villes</span>
                         </button>
-                        <div class="amfm-dd-panel" role="menu" aria-label="Options d'affichage de la carte">
-                            <div class="amfm-dd-title">Sur la carte</div>
-                            <button type="button" class="amfm-dd-item" data-dd-toggle data-amfm-toggle-cities aria-pressed="true" title="Afficher ou masquer les noms des villes">
-                                <i class="fa-solid fa-city" aria-hidden="true"></i> <span>Villes</span><i class="fa-solid fa-check amfm-dd-check" aria-hidden="true"></i>
+                        <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-values aria-pressed="false" aria-label="Afficher ou masquer les valeurs météo" title="Afficher/Masquer les valeurs météo sur la carte">
+                            <i class="fa-solid fa-hashtag" aria-hidden="true"></i> <span>Valeurs</span>
+                        </button>
+                        <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
+                            <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
+                        </button>
+                        <!-- Menu Déroulant des Phénomènes & Cyclones -->
+                        <div class="amfm-cyclones-wrap" id="amfm-cyclones-wrap">
+                            <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-haspopup="true" aria-expanded="false" title="Menu déroulant des cyclones &amp; phénomènes actifs (Afficher / Masquer)">
+                                <i class="fa-solid fa-hurricane" aria-hidden="true" style="color:#ef4444;"></i> <span>Cyclones (<span id="cyclone-nav-count">0</span>)</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;" aria-hidden="true"></i>
                             </button>
-                            <button type="button" class="amfm-dd-item" data-dd-toggle data-amfm-toggle-values aria-pressed="false" title="Afficher ou masquer les valeurs meteorologiques sur la carte">
-                                <i class="fa-solid fa-hashtag" aria-hidden="true"></i> <span>Valeurs chiffrees</span><i class="fa-solid fa-check amfm-dd-check" aria-hidden="true"></i>
-                            </button>
-                            <button type="button" class="amfm-dd-item" data-dd-toggle data-amfm-toggle-fronts aria-pressed="false" title="Afficher ou masquer les lignes TV des masses d'air">
-                                <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV (masses d'air)</span><i class="fa-solid fa-check amfm-dd-check" aria-hidden="true"></i>
-                            </button>
-                        </div>
-                    </div>
-
+                            <div class="amfm-cyclones-dropdown" id="amfm-cyclones-dropdown" role="menu">
+                                <div class="amfm-cyclones-dd-header">
+                                    <div class="amfm-cyclones-dd-title">
+                                        <span><i class="fa-solid fa-hurricane" style="color:#ef4444;"></i> Phénomènes actifs</span>
+                                        <span class="amfm-cyclones-dd-badge" id="cyclones-dd-count-badge">0</span>
+                                    </div>
                                     <div class="amfm-cyclones-dd-quick-actions">
                                         <button type="button" class="amfm-btn-dd-action is-active" id="btn-cyclones-dd-master-toggle" title="Activer ou désactiver l'affichage des cyclones sur la carte">
                                             <i class="fa-solid fa-power-off"></i> <span id="txt-cyclones-dd-master">Actifs</span>
@@ -3440,6 +3296,9 @@
                         <option value="coast">🏖️ Terres + Bord</option>
                     </select>
 
+                    <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-reset aria-label="Recentrer la carte météo" title="Recentrer la carte">
+                        <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
+                    </button>
 
                     <div class="amfm-nav-sep"></div>
 
@@ -3551,31 +3410,14 @@
 
                     <div class="amfm-nav-sep"></div>
 
-                    <!-- Menu Outils : fonctionnalites avancees, sorties de la barre.
-                         Avant : 3 boutons-icones MUETS (aucun libelle) et une icone
-                         d'ecran dupliquee avec "Lignes TV". -->
-                    <div class="amfm-dd-wrap" id="amfm-dd-outils">
-                        <button type="button" class="amfm-btn amfm-btn-dd" id="amfm-dd-outils-toggle"
-                                aria-haspopup="true" aria-expanded="false"
-                                title="Outils : meteogramme, mode presentation TV, recentrage">
-                            <i class="fa-solid fa-sliders" aria-hidden="true"></i> <span>Outils</span>
-                            <i class="fa-solid fa-chevron-down amfm-dd-caret" aria-hidden="true"></i>
-                        </button>
-                        <div class="amfm-dd-panel" role="menu" aria-label="Outils de la carte">
-                            <div class="amfm-dd-title">Outils</div>
-                            <button type="button" class="amfm-dd-item" data-dd-toggle data-amfm-toggle-diagram aria-pressed="false" title="Cliquer sur la carte pour voir l'evolution sur 16 jours">
-                                <i class="fa-solid fa-chart-line" aria-hidden="true"></i> <span>Meteogramme 16 jours</span><i class="fa-solid fa-check amfm-dd-check" aria-hidden="true"></i>
-                            </button>
-                            <button type="button" class="amfm-dd-item" id="amfm-dd-item-tv" data-amfm-toggle-tv title="Mode sans interface pour la TV ou le streaming (touche Z)">
-                                <i class="fa-solid fa-desktop" aria-hidden="true"></i> <span>Mode Presentation TV</span>
-                            </button>
-                            <div class="amfm-dd-sep"></div>
-                            <button type="button" class="amfm-dd-item" data-amfm-reset id="amfm-dd-item-reset" title="Revenir a la vue complete du domaine">
-                                <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i> <span>Recentrer la carte</span>
-                            </button>
-                        </div>
-                    </div>
+                    <!-- Outils Avancés : Météogramme & Mode TV -->
+                    <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-diagram aria-pressed="false" aria-label="Météogramme temporel au clic" title="📈 Météogramme temporel (Cliquer sur la carte pour voir l'évolution 16j)">
+                        <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+                    </button>
 
+                    <button type="button" class="amfm-btn amfm-btn-icon" data-amfm-toggle-tv aria-label="Mode Présentation TV (Touche Z)" title="📺 Mode Présentation TV / Zen (Touche Z ou T)">
+                        <i class="fa-solid fa-tv" aria-hidden="true"></i>
+                    </button>
                 </div>
             </div>
 
@@ -3947,85 +3789,11 @@
     })();
     </script>
 
-    <script src="js/palettes.js?v=20261023-ui4"></script>
+    <script src="js/palettes.js?v=20261023-ui5"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="js/regions.js?v=20261023-ui4"></script>
-    <script src="js/arome-map.js?v=20261023-ui4"></script>
-<script>
-    /* ── Menus deroulants de la navbar ───────────────────────────────────────
-       Les items portent les MEMES data-attributs que les anciens boutons
-       (data-amfm-toggle-cities / -values / -fronts / -diagram / -tv /
-       data-amfm-reset). Le gestionnaire d'origine continue donc de s'executer
-       normalement : on ne fait que refleter l'etat visuel ici.           */
-    (function () {
-        function initDropdown(id) {
-            var wrap = document.getElementById(id);
-            if (!wrap) return;
-            var toggle = wrap.querySelector('.amfm-btn-dd');
-            if (!toggle) return;
-
-            function close() {
-                wrap.classList.remove('is-open');
-                toggle.setAttribute('aria-expanded', 'false');
-            }
-            function open() {
-                wrap.classList.add('is-open');
-                toggle.setAttribute('aria-expanded', 'true');
-            }
-
-            toggle.addEventListener('click', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (wrap.classList.contains('is-open')) close(); else open();
-            });
-
-            // clic a l'exterieur -> fermeture
-            document.addEventListener('click', function (e) {
-                if (!wrap.contains(e.target)) close();
-            });
-            // Echap -> fermeture
-            document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape') close();
-            });
-
-            // Un item d'action (fermeture immediate) : Mode TV, Recentrer
-            wrap.querySelectorAll('.amfm-dd-item:not([data-dd-toggle])').forEach(function (it) {
-                it.addEventListener('click', function () { close(); });
-            });
-
-            // Toggles : on synchronise la coche, sans fermer le menu
-            // (l'utilisateur peut cocher plusieurs options d'affilee).
-            wrap.querySelectorAll('[data-dd-toggle]').forEach(function (it) {
-                it.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    var pressed = it.getAttribute('aria-pressed') === 'true';
-                    it.setAttribute('aria-pressed', pressed ? 'false' : 'true');
-                    it.classList.toggle('is-on', !pressed);
-                });
-            });
-
-            // Reflete l'etat reel des boutons d'origine (deja geres ailleurs).
-            function sync() {
-                wrap.querySelectorAll('[data-dd-toggle]').forEach(function (it) {
-                    it.classList.toggle('is-on', it.getAttribute('aria-pressed') === 'true');
-                });
-            }
-            sync();
-            setInterval(sync, 800);
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function () {
-                initDropdown('amfm-dd-affichage');
-                initDropdown('amfm-dd-outils');
-            });
-        } else {
-            initDropdown('amfm-dd-affichage');
-            initDropdown('amfm-dd-outils');
-        }
-    })();
-</script>
+    <script src="js/regions.js?v=20261023-ui5"></script>
+    <script src="js/arome-map.js?v=20261023-ui5"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";

@@ -7878,7 +7878,11 @@
         }
         if (reset) {
             reset.addEventListener('click', resetView);
-        } else if (resetButton) {
+        } else if (typeof resetButton !== 'undefined' && resetButton) {
+            // resetButton n a jamais ete declaree dans ce fichier : sans le
+            // garde typeof, la reference levait ReferenceError et interrompait
+            // TOUT le script (plus de manifeste, plus de cartes) des que le
+            // bouton Recentrer quittait le DOM (menu Outils).
             resetButton.addEventListener('click', resetView);
         }
         if (fullscreen) {
