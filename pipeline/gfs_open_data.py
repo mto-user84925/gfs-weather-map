@@ -462,10 +462,14 @@ def render_lead(cached, lead, run_dt, domain, out_dir, steps, state):
     def regrid(field, convert=None):
         if field is None:
             return None
-        val, lat, lon = field
-        if convert is not None:
-            val = convert(val)
-        return domain.regrid(val, lat, lon)
+        try:
+            val, lat, lon = field
+            if convert is not None:
+                val = convert(val)
+            return domain.regrid(val, lat, lon)
+        except MemoryError:
+            log("  !! MemoryError lors du regrid GFS (H+%03d)" % lead)
+            return None
 
     if t2m is not None:
         t_c = regrid(t2m, lambda v: v - 273.15)

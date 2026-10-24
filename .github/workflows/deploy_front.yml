@@ -2,6 +2,11 @@ name: "Déploiement Front Seul (GitHub Pages)"
 
 on:
   workflow_dispatch:
+    inputs:
+      merge_run_ids:
+        description: 'IDs de runs dont il faut fusionner les chunks (ex: 40074728688 40075389042)'
+        required: false
+        default: ''
   push:
     branches:
       - main
@@ -24,7 +29,7 @@ concurrency:
 jobs:
   deploy-front:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,30 +38,71 @@ jobs:
         with:
           ref: main
 
+      - uses: actions/setup-python@v5
+        if: inputs.merge_run_ids != ''
+        with:
+          python-version: '3.11'
+
+      - name: Dépendances Python (si fusion de chunks)
+        if: inputs.merge_run_ids != ''
+        run: pip install -r requirements.txt -q
+
       - name: Restaurer les données output du dernier run réussi
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          mkdir -p /tmp/base /tmp/base/restored
+          rm -rf .restore_tmp
+          mkdir -p .restore_tmp
           RESTORED=""
           for RUN_ID in $(gh run list --repo mto-user84925/gfs-weather-map \
-                --status success --limit 10 --json databaseId,workflowName --jq \
-                '.[] | select(.workflowName | test("Build & Deploy")) | .databaseId' 2>/dev/null || true); do
+                --status success --limit 20 --json databaseId,workflowName --jq \
+                '.[] | select(.workflowName | test("Build & Deploy|Déploiement Front Seul")) | .databaseId' 2>/dev/null || true); do
             echo "Tentative de restauration depuis le run $RUN_ID..."
             if gh run download "$RUN_ID" --repo mto-user84925/gfs-weather-map \
-                 -n github-pages -D /tmp/base >/dev/null 2>&1; then
-              RESTORED="$RUN_ID"
-              break
+                 -n github-pages -D .restore_tmp >/dev/null 2>&1; then
+              if tar -xf .restore_tmp/artifact.tar ./output 2>/dev/null || \
+                 tar -xf .restore_tmp/artifact.tar output 2>/dev/null; then
+                RESTORED="$RUN_ID"
+                break
+              fi
+              rm -rf .restore_tmp
+              mkdir -p .restore_tmp
             fi
           done
-          if [ -n "$RESTORED" ]; then
-            tar -xf /tmp/base/artifact.tar -C /tmp/base/restored
-            cp -r /tmp/base/restored/output ./ 2>/dev/null || true
-            echo "Base restaurée depuis le run $RESTORED"
-          else
-            echo "Attention : Aucun artefact trouvé"
+          rm -rf .restore_tmp
+          if [ -z "$RESTORED" ]; then
+            echo "::error::Aucun artefact github-pages trouvé"
+            exit 1
           fi
+          echo "Base restaurée directement dans ./output depuis le run $RESTORED"
+
+      - name: Fusion optionnelle de chunks de runs calculés
+        if: inputs.merge_run_ids != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          for RID in ${{ inputs.merge_run_ids }}; do
+            echo "Téléchargement des chunks du run $RID..."
+            rm -rf .chunks_tmp
+            mkdir -p .chunks_tmp
+            gh run download "$RID" --repo mto-user84925/gfs-weather-map -p "chunk-*" -D .chunks_tmp
+            if ls -d .chunks_tmp/chunk-afs-* >/dev/null 2>&1; then
+              rm -rf output/aifs output/aifs_france
+            fi
+            if ls -d .chunks_tmp/chunk-ifs-* >/dev/null 2>&1; then
+              rm -rf output/ifs output/ifs_france
+            fi
+            for cdir in .chunks_tmp/chunk-*/; do
+              [ -d "$cdir" ] || continue
+              cp -r "$cdir"* output/ 2>/dev/null || true
+            done
+            rm -rf .chunks_tmp
+          done
+          python -u pipeline/generate_fond_gfs.py --domain europe
+          python -u pipeline/generate_fond_gfs.py --domain france
+          python -u pipeline/assemble.py
 
       - name: Assemblage du site statique
         run: |
@@ -71,7 +117,7 @@ jobs:
           touch _site/.nojekyll
           cp -r js _site/
           cp -r config _site/ 2>/dev/null || true
-          cp -r output _site/
+          mv output _site/
 
       - uses: actions/configure-pages@v5
 

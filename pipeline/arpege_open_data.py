@@ -199,9 +199,12 @@ def collect_fields(session, run_dt, max_lead, product="025", blocks=None, lead_m
     eff_max = min(max_lead, lead_max) if lead_max is not None else max_lead
     block_list = blocks if blocks is not None else GRIB_CONFIG["europe"]["blocks"]
     for pkg in PKGS:
+        # Pour SP1 (cumuls APCP et rafales GUST), inclure l'échéance précédente
+        # (lead_min - 3) afin d'initialiser tp_prev aux frontières de chunks (H+24, H+48, H+72).
+        pkg_lead_min = max(0, lead_min - 3) if (pkg == "SP1" and lead_min > 0) else lead_min
         for block in block_list:
             b0, b1 = _block_range(block)
-            if b0 > eff_max or b1 < lead_min:
+            if b0 > eff_max or b1 < pkg_lead_min:
                 continue  # bloc entièrement hors de la portée demandée
             url = grib_url(rs, pkg, block, product)
             size = _head(session, url)
@@ -214,7 +217,7 @@ def collect_fields(session, run_dt, max_lead, product="025", blocks=None, lead_m
                     fields = gribscan.fetch_block(session, url, size, eff_max, log=log)
                     mode = "scan sélectif (Range)"
                 else:
-                    fields = fetch_block_full(session, url, eff_max, log, lead_min=lead_min)
+                    fields = fetch_block_full(session, url, eff_max, log, lead_min=pkg_lead_min)
                     mode = "direct (rapide)"
                 n_full_mb += size // (1024 * 1024)
             except Exception as e:
@@ -240,10 +243,14 @@ def render_lead(fields, lead, run_dt, domain, out_dir, state):
     def regrid(field, convert=None):
         if field is None:
             return None
-        val, lat, lon = field
-        if convert is not None:
-            val = convert(val)
-        return domain.regrid(val, lat, lon)
+        try:
+            val, lat, lon = field
+            if convert is not None:
+                val = convert(val)
+            return domain.regrid(val, lat, lon)
+        except MemoryError:
+            log("  !! MemoryError lors du regrid ARPEGE (H+%03d)" % lead)
+            return None
 
     def save(name, data):
         dst = os.path.join(out_dir, name, "%03d.webp" % lead)
@@ -403,6 +410,17 @@ def render_domain(all_fields, run_dt, domain, out_dir, model_label, resolution,
 
     steps = []
     state = {"counts": {}, "max_gust": None, "tp_prev": None}
+    # Warmup des états cumulatifs (tp_prev, max_gust) depuis les échéances < lead_min
+    for w_lh in sorted(lh for lh in all_fields if lh < lead_min):
+        w_flds = all_fields[w_lh]
+        if "APCP" in w_flds and w_flds["APCP"] is not None:
+            w_val, w_lat, w_lon = w_flds["APCP"]
+            state["tp_prev"] = domain.regrid(w_val, w_lat, w_lon)
+        if "GUST" in w_flds and w_flds["GUST"] is not None:
+            w_val, w_lat, w_lon = w_flds["GUST"]
+            w_g = domain.regrid(w_val * 3.6, w_lat, w_lon)
+            if w_g is not None:
+                state["max_gust"] = w_g if state["max_gust"] is None else np.fmax(state["max_gust"], w_g)
     n_ok = 0
     for lh in leads:
         step = render_lead(all_fields[lh], lh, run_dt, domain, out_dir, state)

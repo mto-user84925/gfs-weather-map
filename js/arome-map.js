@@ -303,10 +303,26 @@
                    key.indexOf('temp') !== -1;
         }
 
+        var SEA_MASK_EXCLUDED = {
+            vagues: true,
+            periode_vagues: true,
+            houle: true,
+            nebulosite: true,
+            nuages_bas: true,
+            nuages_moyens: true,
+            nuages_eleves: true,
+            nuages: true,
+            humidite: true,
+            pression: true,
+            pression_surface: true,
+            geopotentiel_500: true,
+            geopotentiel_500_meteociel: true
+        };
+
         function shouldLayerMaskSea(key) {
             if (!key) return false;
             var lk = key.toLowerCase();
-            if (lk === 'vagues' || lk === 'periode_vagues' || lk === 'houle') return false;
+            if (SEA_MASK_EXCLUDED[lk]) return false;
             return true;
         }
 

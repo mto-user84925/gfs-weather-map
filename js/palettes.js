@@ -239,7 +239,7 @@
         vent: {
             label: 'Vent moyen à 10 m', unit: 'km/h', decimals: 0, transparent_below: 0,
             stops: [
-                { value: 0, color: '#ffffff' },
+                { value: 0, color: '#d8f3ff' },
                 { value: 5, color: '#97e6ff' },
                 { value: 10, color: '#33ccff' },
                 { value: 15, color: '#0099ff' },
@@ -276,7 +276,7 @@
         rafales: {
             label: 'Rafales maximales', unit: 'km/h', decimals: 0, transparent_below: 0,
             stops: [
-                { value: 0, color: '#ffffff' },
+                { value: 0, color: '#d8f3ff' },
                 { value: 5, color: '#97e6ff' },
                 { value: 10, color: '#33ccff' },
                 { value: 15, color: '#0099ff' },
@@ -311,7 +311,7 @@
         rafales_cumul: {
             label: 'Rafales maximales cumulées', unit: 'km/h', decimals: 0, transparent_below: 0,
             stops: [
-                { value: 0, color: '#ffffff' },
+                { value: 0, color: '#d8f3ff' },
                 { value: 5, color: '#97e6ff' },
                 { value: 10, color: '#33ccff' },
                 { value: 15, color: '#0099ff' },

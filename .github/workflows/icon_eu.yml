@@ -174,7 +174,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     needs: [build-fond, render-chunks]
     if: always() && (needs.render-chunks.result == 'success' || needs.build-fond.outputs.mode == 'front')
     concurrency:
@@ -197,31 +197,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -e
-          mkdir -p /tmp/base
+          rm -rf .restore_tmp
+          mkdir -p .restore_tmp
           RESTORED=""
           for RUN_ID in $(gh run list --repo mto-user84925/gfs-weather-map \
                 --status success --limit 20 --json databaseId,workflowName --jq \
-                '.[] | select(.workflowName | test("Build & Deploy")) | .databaseId' 2>/dev/null || true); do
+                '.[] | select(.workflowName | test("Build & Deploy|Déploiement Front Seul")) | .databaseId' 2>/dev/null || true); do
+            echo "Tentative de restauration depuis le run $RUN_ID..."
             if gh run download "$RUN_ID" --repo mto-user84925/gfs-weather-map \
-                 -n github-pages -D /tmp/base >/dev/null 2>&1; then
-              if tar -tf /tmp/base/artifact.tar 2>/dev/null | grep -q "output/"; then
+                 -n github-pages -D .restore_tmp >/dev/null 2>&1; then
+              if tar -xf .restore_tmp/artifact.tar --exclude='*output/icon_eu/*' --exclude='*output/icon_eu_france/*' ./output 2>/dev/null || \
+                 tar -xf .restore_tmp/artifact.tar --exclude='*output/icon_eu/*' --exclude='*output/icon_eu_france/*' output 2>/dev/null; then
                 RESTORED="$RUN_ID"
                 break
               fi
-              rm -rf /tmp/base
-              mkdir -p /tmp/base
+              rm -rf .restore_tmp
+              mkdir -p .restore_tmp
             fi
           done
+          rm -rf .restore_tmp
           if [ -z "$RESTORED" ]; then
             echo "::error::Aucun artefact github-pages météo récent à restaurer"
             exit 1
           fi
-          # Extraire dans un dossier SÉPARÉ puis ne copier QUE output/ :
-          # on préserve index.html + js/ du checkout (code le plus récent).
-          mkdir -p /tmp/base/restored
-          tar -xf /tmp/base/artifact.tar -C /tmp/base/restored
-          cp -r /tmp/base/restored/output ./
-          echo "Base restaurée depuis le run $RESTORED (output/ fusionné, code du repo conservé)"
+          echo "Base restaurée directement dans ./output depuis le run $RESTORED"
       - name: Purge des répertoires régénérés
         run: |
           rm -rf output/icon_eu output/icon_eu_france
@@ -252,7 +251,7 @@ jobs:
           touch _site/.nojekyll
           cp -r js _site/
           cp -r config _site/ 2>/dev/null || true
-          cp -r output _site/
+          mv output _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1751,17 +1751,32 @@
            dès qu'il manque de place, repli mesuré à ~1620 px de contenu.
            ═══════════════════════════════════════════════════════════════════ */
         @media (max-width: 1880px) {
-            .amfm-navbar { overflow: visible; }
+            .amfm-navbar {
+                overflow: visible;
+                gap: 4px !important;
+                padding: 4px 8px !important;
+            }
+            .amfm-nav-controls {
+                flex: 1 1 0 !important;
+                min-width: 0 !important;
+                gap: 4px !important;
+            }
+            .amfm-select-layer,
+            .amfm-select-model,
+            .amfm-select-region {
+                min-width: 0 !important;
+                flex: 1 1 0 !important;
+            }
+            .amfm-nav-sep {
+                display: none !important;
+            }
         }
-        @media (max-width: 1880px) {
+        @media (max-width: 1439px) {
             .amfm-navbar {
                 flex-wrap: wrap !important;
                 gap: 6px !important;
                 padding: 6px 10px !important;
             }
-            /* Les selecteurs (modele / calque / zone) restent sur la
-               PREMIERE ligne, a gauche : `order: 3` les rejetait apres
-               les boutons d'action, d'ou l'impression de desordre. */
             .amfm-nav-controls {
                 order: 1 !important;
                 width: auto !important;
@@ -1775,12 +1790,6 @@
             .amfm-nav-actions {
                 order: 2 !important;
                 margin-left: auto !important;
-            }
-            .amfm-select-layer,
-            .amfm-select-model,
-            .amfm-select-region {
-                min-width: 0 !important;
-                flex: 1 !important;
             }
         }
         @media (max-width: 650px) {
@@ -3051,7 +3060,7 @@
                     </button>
                     <span class="amfm-title-text">ARPEGE France</span>
                     <span class="amfm-badge">0,1°</span>
-                    <a href="https://mto-user84925.github.io/arome-weather-map/" target="_blank" rel="noopener" class="amfm-btn amfm-btn-arome-link" title="Ouvrir le site dédié AROME HD 1,3 km (Météo-France)">
+                    <a href="https://mto-user84925.github.io/arome-weather-map/" target="_blank" rel="noopener" class="amfm-btn amfm-btn-arome-link" aria-label="Ouvrir le site dédié AROME HD 1,3 km" title="Ouvrir le site dédié AROME HD 1,3 km (Météo-France)">
                         <i class="fa-solid fa-bolt" aria-hidden="true"></i> <span>AROME 1,3 km</span> <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" style="font-size:9px;opacity:0.8;"></i>
                     </a>
                 </div>
@@ -3252,11 +3261,11 @@
                             <i class="fa-solid fa-hashtag" aria-hidden="true"></i> <span>Valeurs</span>
                         </button>
                         <button type="button" class="amfm-btn amfm-btn-toggle" data-amfm-toggle-fronts aria-pressed="false" aria-label="Afficher ou masquer les lignes TV des masses d'air" title="Afficher/Masquer les lignes TV et cartouches de zones">
-                            <i class="fa-solid fa-tv" aria-hidden="true"></i> <span>Lignes TV</span>
+                            <i class="fa-solid fa-bezier-curve" aria-hidden="true"></i> <span>Lignes TV</span>
                         </button>
                         <!-- Menu Déroulant des Phénomènes & Cyclones -->
                         <div class="amfm-cyclones-wrap" id="amfm-cyclones-wrap">
-                            <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-haspopup="true" aria-expanded="false" title="Menu déroulant des cyclones &amp; phénomènes actifs (Afficher / Masquer)">
+                            <button type="button" class="amfm-btn amfm-btn-toggle is-active" data-amfm-toggle-cyclones id="btn-toggle-cyclones-nav" aria-haspopup="true" aria-expanded="false" aria-label="Menu déroulant des cyclones et phénomènes actifs" title="Menu déroulant des cyclones &amp; phénomènes actifs (Afficher / Masquer)">
                                 <i class="fa-solid fa-hurricane" aria-hidden="true" style="color:#ef4444;"></i> <span>Cyclones (<span id="cyclone-nav-count">0</span>)</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:2px;" aria-hidden="true"></i>
                             </button>
                             <div class="amfm-cyclones-dropdown" id="amfm-cyclones-dropdown" role="menu">
@@ -3317,7 +3326,7 @@
 
                     <!-- Menu Unique Téléchargement & Exports (HD + TikTok) -->
                     <div class="amfm-export-wrap" id="amfm-export-wrap">
-                        <button type="button" class="amfm-btn amfm-btn-download" id="amfm-export-toggle" aria-haspopup="true" aria-expanded="false" title="Téléchargements (PNG HD, Écran, GIF, Pack TikTok 16j…)">
+                        <button type="button" class="amfm-btn amfm-btn-download" id="amfm-export-toggle" aria-haspopup="true" aria-expanded="false" aria-label="Menu des téléchargements et exports" title="Téléchargements (PNG HD, Écran, GIF, Pack TikTok 16j…)">
                             <i class="fa-solid fa-download" aria-hidden="true"></i> <span>Télécharger</span> <i class="fa-solid fa-chevron-down" style="font-size:10px; margin-left:3px;" aria-hidden="true"></i>
                         </button>
                         <div class="amfm-export-dropdown" role="menu">
@@ -3802,11 +3811,11 @@
     })();
     </script>
 
-    <script src="js/palettes.js?v=20261023-ui8"></script>
+    <script src="js/palettes.js?v=20261024-ui9"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="js/regions.js?v=20261023-ui8"></script>
-    <script src="js/arome-map.js?v=20261023-ui8"></script>
+    <script src="js/regions.js?v=20261024-ui9"></script>
+    <script src="js/arome-map.js?v=20261024-ui9"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";

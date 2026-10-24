@@ -224,10 +224,14 @@ def render_lead_par(fields, lead, run_dt, domain, out_dir):
     def regrid(field, convert=None):
         if field is None:
             return None
-        val, lat, lon = field
-        if convert is not None:
-            val = convert(val)
-        return domain.regrid(val, lat, lon)
+        try:
+            val, lat, lon = field
+            if convert is not None:
+                val = convert(val)
+            return domain.regrid(val, lat, lon)
+        except MemoryError:
+            log("  !! MemoryError lors du regrid IFS (H+%03d)" % lead)
+            return None
 
     def save(name, data):
         dst = os.path.join(out_dir, name, "%03d.webp" % lead)
@@ -314,17 +318,10 @@ def render_lead_par(fields, lead, run_dt, domain, out_dir):
                       + v10[0].astype(np.float32) ** 2) * 3.6
         save("vent", domain.regrid(spd, u10[1], u10[2]))
 
-    # Rafales : priorité à la rafale native IFS (10fg), fallback V10 * 1.40
+    # Rafales : uniquement la rafale native IFS (10fg) présente dans le GRIB
     gust = fields.get("GUST")
     if gust is not None:
         g = regrid(gust, lambda v: v * 3.6)
-        if g is not None:
-            save("rafales", g)
-            gust_g = g
-    elif u10 is not None and v10 is not None:
-        spd = np.sqrt(u10[0].astype(np.float32) ** 2
-                      + v10[0].astype(np.float32) ** 2) * 3.6
-        g = domain.regrid(spd * 1.40, u10[1], u10[2])
         if g is not None:
             save("rafales", g)
             gust_g = g
