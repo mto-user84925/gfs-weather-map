@@ -1696,79 +1696,96 @@
             gap: 4px;
         }
 
-        /* Masquage des libellés texte des boutons et compactage sur écrans ≤1680px (laptops, tablettes, multi-écrans) */
-        @media (max-width: 1680px) {
-            .amfm-btn-toggle span,
-            .amfm-btn-arome-link span,
-            .amfm-btn-arome-link i.fa-arrow-up-right-from-square,
-            #amfm-export-toggle span,
-            #amfm-export-toggle i.fa-chevron-down {
-                display: none !important;
-            }
-            .amfm-btn-toggle,
-            .amfm-btn-arome-link,
-            #amfm-export-toggle {
-                width: 36px !important;
-                min-width: 36px !important;
-                padding: 0 !important;
-                justify-content: center !important;
-            }
+        /* Compactage progressif sur écrans ≤1920px : TOUS les libellés de boutons
+           restent visibles (aucune icône muette, aucun bouton forcé à 36 px)
+           et la barre tient sur UNE SEULE LIGNE de 1440 px à 2560 px. */
+        @media (max-width: 1920px) {
             .amfm-title-text,
-            .amfm-badge {
+            .amfm-badge,
+            .amfm-nav-sep,
+            .amfm-btn-arome-link i.fa-arrow-up-right-from-square {
                 display: none !important;
             }
-            .amfm-search-wrapper {
-                width: 125px;
-                min-width: 85px;
-            }
-            .amfm-select-sea {
-                max-width: 110px;
-                font-size: 11px;
-            }
-        }
-
-        /* Ajustements petits écrans (<= 1024px) */
-        @media (max-width: 1024px) {
-            .amfm-btn-commune span {
-                display: none !important;
-            }
-            .amfm-btn-commune {
-                width: 36px !important;
-                min-width: 36px !important;
-                padding: 0 !important;
-            }
-            .amfm-search-wrapper {
-                width: 95px;
-                min-width: 75px;
-            }
-        }
-
-        /* ═══════════════════════════════════════════════════════════════════
-           📐 Paliers intermédiaires mesurés (1441 – 1660 px)
-           Avant : entre 1320 et 1660 px la barre tenait sur UNE ligne mais
-           débordait — « Météogramme » et « Mode TV » sortaient de l'écran,
-           sans le moindre indice (overflow-x invisible). On empile désormais
-           dès qu'il manque de place, repli mesuré à ~1620 px de contenu.
-           ═══════════════════════════════════════════════════════════════════ */
-        @media (max-width: 1880px) {
             .amfm-navbar {
                 overflow: visible;
                 gap: 4px !important;
                 padding: 4px 8px !important;
             }
+            .amfm-nav-brand,
+            .amfm-nav-controls,
+            .amfm-nav-actions,
+            .amfm-btn-group {
+                gap: 4px !important;
+            }
             .amfm-nav-controls {
                 flex: 1 1 0 !important;
                 min-width: 0 !important;
-                gap: 4px !important;
             }
             .amfm-select-layer,
             .amfm-select-model,
             .amfm-select-region {
                 min-width: 0 !important;
                 flex: 1 1 0 !important;
+                font-size: 11.5px !important;
+                padding: 0 22px 0 7px !important;
+                background-position: right 6px center !important;
             }
-            .amfm-nav-sep {
-                display: none !important;
+            .amfm-btn,
+            .amfm-btn-toggle,
+            .amfm-btn-arome-link,
+            .amfm-btn-labelled,
+            .amfm-btn-labelled-clean,
+            #amfm-export-toggle {
+                width: auto !important;
+                min-width: 0 !important;
+                padding: 0 7px !important;
+                font-size: 11px !important;
+                gap: 4px !important;
+            }
+            .amfm-select-sea {
+                max-width: 108px !important;
+                min-width: 0 !important;
+                font-size: 11px !important;
+                padding: 0 20px 0 6px !important;
+                background-position: right 5px center !important;
+            }
+            .amfm-search-wrapper {
+                width: 105px !important;
+                min-width: 80px !important;
+            }
+        }
+
+        @media (max-width: 1600px) {
+            .amfm-brand-btn {
+                padding: 2px 5px !important;
+                gap: 4px !important;
+            }
+            .amfm-logo {
+                height: 20px !important;
+            }
+            .amfm-btn,
+            .amfm-btn-toggle,
+            .amfm-btn-arome-link,
+            .amfm-btn-labelled,
+            .amfm-btn-labelled-clean,
+            #amfm-export-toggle {
+                padding: 0 5px !important;
+                font-size: 10.5px !important;
+                gap: 3px !important;
+            }
+            .amfm-select-layer,
+            .amfm-select-model,
+            .amfm-select-region {
+                font-size: 11px !important;
+                padding: 0 18px 0 5px !important;
+            }
+            .amfm-select-sea {
+                max-width: 96px !important;
+                font-size: 10.5px !important;
+            }
+            .amfm-search-wrapper {
+                width: 88px !important;
+                min-width: 72px !important;
             }
         }
         @media (max-width: 1439px) {
@@ -3305,7 +3322,7 @@
                             </div>
                         </div>
                         <button type="button" class="amfm-btn amfm-btn-toggle amfm-btn-period-nav" id="btn-toggle-period" data-amfm-toggle-period aria-pressed="false" aria-label="Afficher la synthèse sur une période" title="Synthèse sur période (Tmax, Cumul Pluie, Rafales...)">
-                            <i class="fa-solid fa-calendar-days" aria-hidden="true" style="color:#00d2ff;"></i> <span style="font-weight:700;">🗓️ Période</span>
+                            <i class="fa-solid fa-calendar-days" aria-hidden="true" style="color:#00d2ff;"></i> <span style="font-weight:700;">Période</span>
                         </button>
                     </div>
 
@@ -3811,11 +3828,11 @@
     })();
     </script>
 
-    <script src="js/palettes.js?v=20261024-ui9"></script>
+    <script src="js/palettes.js?v=20261024-ui10"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="js/regions.js?v=20261024-ui9"></script>
-    <script src="js/arome-map.js?v=20261024-ui9"></script>
+    <script src="js/regions.js?v=20261024-ui10"></script>
+    <script src="js/arome-map.js?v=20261024-ui10"></script>
 <script>
 (function() {
     var MM_FALLBACK = "https://lh3.googleusercontent.com/aida-public/AB6AXuBOx1F1TSaVo-90uMYKn9COfMPmjAX0T-pDidLIG3dPGDOY8KZaze-h0L3XqQFBQYd2hOHF3ncMJUSafxVsBVCsa_nG_lc6fpJuY9v9GDCYja_y7Yp7cY-R3DVGTOnpn-SMdrNqECFBDa-E-v0VnHWzB7gvt3J4SIGkNfDhO17usu8WyVxYhbXh6JJyqEE715ISXChoGvFwKoKxk4_INHavYh_JUKzTUvJFsg7VX9fkzGTJOPZFY4SKNUATMB_IUPKDfX3Cwx4Gz5g";
