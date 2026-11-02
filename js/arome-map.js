@@ -70,8 +70,10 @@
         var urlInitLayer = urlInitParams.get('parametre') || urlInitParams.get('layer');
         var urlInitRegion = urlInitParams.get('region');
         var initialModelMap = {
-            consensus: { path: 'output/consensus', name: 'CONSENSUS Europe', badge: 'Moyenne' },
-            consensus_france: { path: 'output/consensus_france', name: 'CONSENSUS France HD', badge: '0,1°' },
+            meteo_climat_pro_france: { path: 'output/meteo_climat_pro_france', name: 'Modèle Météo-Climat Pro France & Régions', badge: 'HD Multi' },
+            meteo_climat_pro: { path: 'output/meteo_climat_pro', name: 'Modèle Météo-Climat Pro Europe', badge: 'Consensus' },
+            consensus: { path: 'output/meteo_climat_pro', name: 'Modèle Météo-Climat Pro Europe', badge: 'Consensus' },
+            consensus_france: { path: 'output/meteo_climat_pro_france', name: 'Modèle Météo-Climat Pro France & Régions', badge: 'HD Multi' },
             probabilites: { path: 'output/probabilites', name: 'PROBABILITÉS Europe', badge: '24h' },
             probabilites_france: { path: 'output/probabilites_france', name: 'PROBABILITÉS France', badge: '24h' },
             gfs: { path: 'output/gfs', name: 'GFS Europe', badge: '0,25°' },
@@ -4514,8 +4516,10 @@
         function switchModel(modelKey) {
             var token = ++switchToken; // invalide tout fetch précédent
             var modelMap = {
-                consensus: { path: 'output/consensus', name: 'CONSENSUS Europe', badge: 'Moyenne' },
-                consensus_france: { path: 'output/consensus_france', name: 'CONSENSUS France HD', badge: '0,1°' },
+                meteo_climat_pro_france: { path: 'output/meteo_climat_pro_france', name: 'Modèle Météo-Climat Pro France & Régions', badge: 'HD Multi' },
+                meteo_climat_pro: { path: 'output/meteo_climat_pro', name: 'Modèle Météo-Climat Pro Europe', badge: 'Consensus' },
+                consensus: { path: 'output/meteo_climat_pro', name: 'Modèle Météo-Climat Pro Europe', badge: 'Consensus' },
+                consensus_france: { path: 'output/meteo_climat_pro_france', name: 'Modèle Météo-Climat Pro France & Régions', badge: 'HD Multi' },
                 probabilites: { path: 'output/probabilites', name: 'PROBABILITÉS Europe', badge: '24h' },
                 probabilites_france: { path: 'output/probabilites_france', name: 'PROBABILITÉS France', badge: '24h' },
                 gfs: { path: 'output/gfs', name: 'GFS Europe', badge: '0,25°' },

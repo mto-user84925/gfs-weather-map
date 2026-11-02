@@ -37,10 +37,12 @@ def assemble_model(model_key, domain, meta):
     # ponytail: Cache par famille de modèle et conservation du run_time existant
     # pour garantir la cohérence absolue entre domaines (ex: ifs et ifs_france)
     # et éviter d'écraser un modèle non ciblé par le workflow actif.
-    family = "ifs" if ("ifs" in model_key and "aifs" not in model_key) else (
-        "aifs" if "aifs" in model_key else (
-            "gfs" if "gfs" in model_key else (
-                "icon" if "icon" in model_key else "arpege"
+    family = "mcp" if ("meteo_climat_pro" in model_key or "consensus" in model_key) else (
+        "ifs" if ("ifs" in model_key and "aifs" not in model_key) else (
+            "aifs" if "aifs" in model_key else (
+                "gfs" if "gfs" in model_key else (
+                    "icon" if "icon" in model_key else "arpege"
+                )
             )
         )
     )
@@ -60,7 +62,9 @@ def assemble_model(model_key, domain, meta):
                 pass
 
         if run_dt is None:
-            if family == "gfs":
+            if family == "mcp":
+                run_dt = arpege_open_data.latest_run()
+            elif family == "gfs":
                 run_dt = gfs_open_data.latest_run()
             elif family == "icon":
                 run_dt = icon_open_data.latest_run()
@@ -137,6 +141,34 @@ def main():
         daily_min_max.main()
     except Exception as e:
         print("[assemble] Note : daily_min_max non exécuté : %s" % e, flush=True)
+
+    # ── MODÈLE MÉTÉO-CLIMAT PRO (CONSENSUS MULTI-MODÈLES) ──────────────
+    try:
+        import consensus_engine
+        consensus_engine.main()
+    except Exception as e:
+        print("[assemble] Note : consensus_engine non exécuté : %s" % e, flush=True)
+
+    assemble_model("meteo_climat_pro_france", FRANCE, {
+        "model_name": "Modèle Météo-Climat Pro France & Régions",
+        "provider": "Météo-Climat Pro — Consensus Multi-Modèles",
+        "resolution": "Haute Définition (Consensus ARPEGE / ICON / ECMWF / GFS)",
+    })
+    assemble_model("meteo_climat_pro", EUROPE, {
+        "model_name": "Modèle Météo-Climat Pro Europe",
+        "provider": "Météo-Climat Pro — Consensus Multi-Modèles Synoptique",
+        "resolution": "Synoptique (Consensus Europe)",
+    })
+    assemble_model("consensus_france", FRANCE, {
+        "model_name": "Modèle Météo-Climat Pro France & Régions",
+        "provider": "Météo-Climat Pro — Consensus Multi-Modèles",
+        "resolution": "Haute Définition (Consensus ARPEGE / ICON / ECMWF / GFS)",
+    })
+    assemble_model("consensus", EUROPE, {
+        "model_name": "Modèle Météo-Climat Pro Europe",
+        "provider": "Météo-Climat Pro — Consensus Multi-Modèles Synoptique",
+        "resolution": "Synoptique (Consensus Europe)",
+    })
 
     assemble_model("gfs", EUROPE, {
         "model_name": "GFS 0.25° Europe",
