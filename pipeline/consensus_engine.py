@@ -224,6 +224,14 @@ def process_domain_consensus(domain_name):
 
     def process_step_layer(item):
         lead, layer = item
+        lead_str = f"{lead:03d}"
+        hkv_dst = os.path.join(out_dir, "values", layer, f"{lead_str}.hkv.gz")
+        webp_dst = os.path.join(out_dir, layer, f"{lead_str}.webp")
+
+        # ponytail: Skip ultra-rapide si les dalles existent déjà (évite 10+ min de recalcul inutile)
+        if os.path.exists(hkv_dst) and os.path.exists(webp_dst):
+            return 0
+
         grids = []
         weights = []
 
@@ -246,10 +254,6 @@ def process_domain_consensus(domain_name):
         blended = blend_grids(grids, weights, layer)
         if blended is None:
             return 0
-
-        lead_str = f"{lead:03d}"
-        hkv_dst = os.path.join(out_dir, "values", layer, f"{lead_str}.hkv.gz")
-        webp_dst = os.path.join(out_dir, layer, f"{lead_str}.webp")
 
         # 1. Sauvegarde Sonde HKV
         write_hkv(blended, hkv_dst)

@@ -548,10 +548,7 @@ jobs:
         run: |
           python -u pipeline/generate_fond_gfs.py --domain all
           python -u pipeline/cyclone_tracker.py
-      - name: Génération du Modèle Météo-Climat Pro (Consensus France & Europe)
-        run: python -u pipeline/consensus_engine.py
-
-      - name: Assemblage des manifests index.json
+      - name: Assemblage des manifests index.json & Modèle Météo-Climat Pro
         run: python -u pipeline/assemble.py
 
       - name: Préparation du site statique
