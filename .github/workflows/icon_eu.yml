@@ -221,6 +221,9 @@ jobs:
             exit 1
           fi
           echo "Base restaurée directement dans ./output depuis le run $RESTORED"
+          # Purge automatique des bassins mondiaux obsolètes et gros fichiers
+          rm -rf output/*pacifique* output/*etats_unis* output/*usa* output/*ocean_indien* output/*antilles* output/cyclones_actifs.json output/alertes_extremes_monde.json
+          echo "Purge des bassins mondiaux effectuée avec succès"
       - name: Purge des répertoires régénérés
         run: |
           rm -rf output/icon_eu output/icon_eu_france

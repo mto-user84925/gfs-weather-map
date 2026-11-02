@@ -10,7 +10,7 @@ on:
       max_hours:
         description: 'Échéance GFS max en heures (48 = test rapide, 384 = GFS 16 jours complet)'
         required: false
-        default: '384'
+        default: '240'
       models:
         description: 'Modèles à lancer : gfs, arpege ou gfs,arpege'
         required: false
@@ -97,7 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── GFS Europe (6 groupes) ──────────────────────────────
+          # ── GFS Europe (5 groupes, max 240 h / 10 jours) ────────
           - id: gfs-eu-00-36
             model: gfs
             domain: europe
@@ -123,13 +123,8 @@ jobs:
             domain: europe
             lead_min: 150
             lead_max: 240
-          - id: gfs-eu-252-384
-            model: gfs
-            domain: europe
-            lead_min: 252
-            lead_max: 384
 
-          # ── GFS France (6 groupes) ──────────────────────────────
+          # ── GFS France (5 groupes, max 240 h / 10 jours) ────────
           - id: gfs-fr-00-36
             model: gfs
             domain: france
@@ -155,13 +150,8 @@ jobs:
             domain: france
             lead_min: 150
             lead_max: 240
-          - id: gfs-fr-252-384
-            model: gfs
-            domain: france
-            lead_min: 252
-            lead_max: 384
 
-          # ── ARPEGE Europe (4 groupes, produit GLOB025 0,25° pleine couverture) ──
+          # ── ARPEGE Europe (4 groupes, produit 0.25° complet) ────
           - id: arp-eu-00-24
             model: arpege
             domain: europe
@@ -183,7 +173,7 @@ jobs:
             lead_min: 73
             lead_max: 102
 
-          # ── ARPEGE France (4 groupes, produit EURAT01 0,1° haute résolution 11 km) ──
+          # ── ARPEGE France (4 groupes, produit EURAT01 0.1° HD) ──
           - id: arp-fr-00-24
             model: arpege
             domain: france
@@ -204,210 +194,6 @@ jobs:
             domain: france
             lead_min: 73
             lead_max: 102
-
-          # ── GFS Arc Antillais (3 groupes) ───────────────────────────────────
-          - id: gfs-ant-00-072
-            model: gfs
-            domain: antilles
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-ant-075-168
-            model: gfs
-            domain: antilles
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-ant-171-384
-            model: gfs
-            domain: antilles
-            lead_min: 171
-            lead_max: 384
-
-          # ── GFS États-Unis (3 groupes) ──────────────────────────────────────
-          - id: gfs-usa-00-072
-            model: gfs
-            domain: etats_unis
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-usa-075-168
-            model: gfs
-            domain: etats_unis
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-usa-171-384
-            model: gfs
-            domain: etats_unis
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Arc Antillais (2 groupes, max 240 h) ───────────────────────
-          - id: aifs-ant-00-120
-            model: aifs
-            domain: antilles
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-ant-126-240
-            model: aifs
-            domain: antilles
-            lead_min: 126
-            lead_max: 240
-
-          # ── AIFS États-Unis (2 groupes, max 240 h) ──────────────────────────
-          - id: aifs-usa-00-120
-            model: aifs
-            domain: etats_unis
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-usa-126-240
-            model: aifs
-            domain: etats_unis
-            lead_min: 126
-            lead_max: 240
-
-          # ── GFS Asie de l'Est & Typhons (Chine • Japon • Corée) ─────────────
-          - id: gfs-pac-00-072
-            model: gfs
-            domain: pacifique_ouest
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-pac-075-168
-            model: gfs
-            domain: pacifique_ouest
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-pac-171-384
-            model: gfs
-            domain: pacifique_ouest
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Asie de l'Est (Chine • Japon • Corée, max 240 h) ───────────
-          - id: aifs-pac-00-120
-            model: aifs
-            domain: pacifique_ouest
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-pac-126-240
-            model: aifs
-            domain: pacifique_ouest
-            lead_min: 126
-            lead_max: 240
-
-          # ── GFS Asie du Sud & Inde ──────────────────────────────────────────
-          - id: gfs-ind-00-072
-            model: gfs
-            domain: ocean_indien_nord
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-ind-075-168
-            model: gfs
-            domain: ocean_indien_nord
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-ind-171-384
-            model: gfs
-            domain: ocean_indien_nord
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Asie du Sud & Inde (max 240 h) ─────────────────────────────
-          - id: aifs-ind-00-120
-            model: aifs
-            domain: ocean_indien_nord
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-ind-126-240
-            model: aifs
-            domain: ocean_indien_nord
-            lead_min: 126
-            lead_max: 240
-
-          # ── GFS Pacifique Est (Ouragans Lowell, Marie, Karina • Hawaï) ──────
-          - id: gfs-pe-00-072
-            model: gfs
-            domain: pacifique_est
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-pe-075-168
-            model: gfs
-            domain: pacifique_est
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-pe-171-384
-            model: gfs
-            domain: pacifique_est
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Pacifique Est (Ouragans Lowell, Marie, Karina, max 240 h) ──
-          - id: aifs-pe-00-120
-            model: aifs
-            domain: pacifique_est
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-pe-126-240
-            model: aifs
-            domain: pacifique_est
-            lead_min: 126
-            lead_max: 240
-
-          # ── GFS Océan Indien (Réunion • Maurice • Madagascar) ───────────────
-          - id: gfs-oi-00-072
-            model: gfs
-            domain: ocean_indien
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-oi-075-168
-            model: gfs
-            domain: ocean_indien
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-oi-171-384
-            model: gfs
-            domain: ocean_indien
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Océan Indien (max 240 h) ───────────────────────────────────
-          - id: aifs-oi-00-120
-            model: aifs
-            domain: ocean_indien
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-oi-126-240
-            model: aifs
-            domain: ocean_indien
-            lead_min: 126
-            lead_max: 240
-
-          # ── GFS Pacifique Sud (Nouvelle-Calédonie • Fidji • Vanuatu) ─────────
-          - id: gfs-ps-00-072
-            model: gfs
-            domain: pacifique_sud
-            lead_min: 0
-            lead_max: 72
-          - id: gfs-ps-075-168
-            model: gfs
-            domain: pacifique_sud
-            lead_min: 75
-            lead_max: 168
-          - id: gfs-ps-171-384
-            model: gfs
-            domain: pacifique_sud
-            lead_min: 171
-            lead_max: 384
-
-          # ── AIFS Pacifique Sud (max 240 h) ──────────────────────────────────
-          - id: aifs-ps-00-120
-            model: aifs
-            domain: pacifique_sud
-            lead_min: 0
-            lead_max: 120
-          - id: aifs-ps-126-240
-            model: aifs
-            domain: pacifique_sud
-            lead_min: 126
-            lead_max: 240
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -525,6 +311,9 @@ jobs:
             exit 1
           fi
           echo "Base restaurée directement dans ./output depuis le run $RESTORED"
+          # Purge automatique des bassins mondiaux obsolètes et gros fichiers
+          rm -rf output/*pacifique* output/*etats_unis* output/*usa* output/*ocean_indien* output/*antilles* output/cyclones_actifs.json output/alertes_extremes_monde.json
+          echo "Purge des bassins mondiaux effectuée avec succès"
 
       - name: Purge des répertoires régénérés (évite les dalles obsolètes)
         if: needs.build-fond.outputs.mode != 'front'

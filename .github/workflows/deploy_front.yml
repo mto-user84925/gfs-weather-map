@@ -74,6 +74,9 @@ jobs:
             exit 1
           fi
           echo "Base restaurée directement dans ./output depuis le run $RESTORED"
+          # Purge automatique des bassins mondiaux obsolètes et gros fichiers
+          rm -rf output/*pacifique* output/*etats_unis* output/*usa* output/*ocean_indien* output/*antilles* output/cyclones_actifs.json output/alertes_extremes_monde.json
+          echo "Purge des bassins mondiaux effectuée avec succès"
 
       - name: Fusion optionnelle de chunks de runs calculés
         if: inputs.merge_run_ids != ''
