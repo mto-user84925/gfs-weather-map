@@ -14,6 +14,7 @@ on:
       - 'index.html'
       - 'js/**'
       - 'config/**'
+      - 'pipeline/**'
       - '.github/workflows/deploy_front.yml'
 
 permissions:
@@ -106,18 +107,8 @@ jobs:
           python -u pipeline/assemble.py
 
       - name: Génération du Modèle Météo-Climat Pro & Assemblage
-
         run: |
-
-          python -u pipeline/consensus_engine.py
-
-          python -u pipeline/assemble.py
-
-
-
-      - name: Génération du Modèle Météo-Climat Pro & Assemblage
-        run: |
-          python -u pipeline/consensus_engine.py
+          python -u pipeline/consensus_engine.py --force
           python -u pipeline/assemble.py
 
       - name: Assemblage du site statique

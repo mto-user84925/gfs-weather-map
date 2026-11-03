@@ -126,8 +126,18 @@ def sync_fonds(domain_name, dst_maps):
             break
 
 
+def nan_weighted_average(stack, weights):
+    """Calcule la moyenne pondérée en ignorant les NaN par pixel (renormalisation dynamique)."""
+    valid = np.isfinite(stack)
+    w_mat = weights[:, None, None] * valid
+    w_sum = np.sum(w_mat, axis=0)
+    safe_stack = np.where(valid, stack, 0.0)
+    w_avg = np.sum(w_mat * safe_stack, axis=0)
+    return np.where(w_sum > 0, w_avg / np.where(w_sum > 0, w_sum, 1.0), np.nan).astype(np.float32)
+
+
 def blend_grids(grid_list, weight_list, layer_name):
-    """Combine les grilles selon le type de paramètre physique."""
+    """Combine les grilles selon le type de paramètre physique (résistant aux NaN et limites de domaines)."""
     if not grid_list:
         return None
     if len(grid_list) == 1:
@@ -141,39 +151,41 @@ def blend_grids(grid_list, weight_list, layer_name):
         weights = weights / w_sum
 
     stack = np.stack(grid_list, axis=0)  # (N, H, W)
+    w_avg = nan_weighted_average(stack, weights)
 
     # 1. Rafales : Enveloppe haute (percentile 75-80) pour ne pas lisser les tempêtes
     if "rafale" in layer_name:
-        w_avg = np.tensordot(weights, stack, axes=(0, 0))
-        p_max = np.nanmax(stack, axis=0)
-        return 0.6 * w_avg + 0.4 * p_max
+        with np.errstate(all='ignore'):
+            p_max = np.nanmax(stack, axis=0)
+        return np.where(np.isfinite(w_avg), 0.6 * w_avg + 0.4 * p_max, p_max).astype(np.float32)
 
     # 2. CAPE / Orages : Enveloppe haute pour préserver le risque convectif
     if "mucape" in layer_name or "cape" in layer_name:
-        w_avg = np.tensordot(weights, stack, axes=(0, 0))
-        p_max = np.nanmax(stack, axis=0)
-        return 0.5 * w_avg + 0.5 * p_max
+        with np.errstate(all='ignore'):
+            p_max = np.nanmax(stack, axis=0)
+        return np.where(np.isfinite(w_avg), 0.5 * w_avg + 0.5 * p_max, p_max).astype(np.float32)
 
     # 3. Précipitations (pluie_1h, pluie_cumul) : Médiane non-nulle conditionnelle
     if "pluie" in layer_name:
-        # Masque des modèles qui voient de la pluie (> 0.2 mm)
-        rain_mask = stack > 0.2
+        valid = np.isfinite(stack)
+        rain_mask = (stack > 0.2) & valid
         rain_count = np.sum(rain_mask, axis=0)
-        # Si moins de 30% des modèles voient de la pluie, pas de pluie artificielle
-        threshold = max(1, int(0.3 * len(grid_list)))
-        valid_rain = rain_count >= threshold
+        valid_count = np.sum(valid, axis=0)
+        threshold = np.maximum(1, (0.3 * valid_count).astype(int))
+        valid_rain = (rain_count >= threshold) & (valid_count > 0)
 
-        # Médiane sur les prévisions
-        median_rain = np.nanmedian(stack, axis=0)
-        w_avg = np.tensordot(weights, stack, axes=(0, 0))
+        with np.errstate(all='ignore'):
+            median_rain = np.nanmedian(stack, axis=0)
+
         combined = 0.5 * median_rain + 0.5 * w_avg
-        return np.where(valid_rain, combined, 0.0).astype(np.float32)
+        res = np.where(valid_rain, combined, 0.0)
+        return np.where(valid_count > 0, res, np.nan).astype(np.float32)
 
     # 4. Tous les autres scalaires (température, pression, point de rosée, humidex, nébulosité...)
-    return np.tensordot(weights, stack, axes=(0, 0)).astype(np.float32)
+    return w_avg.astype(np.float32)
 
 
-def process_domain_consensus(domain_name):
+def process_domain_consensus(domain_name, force=False):
     """Génère le modèle consensus pour un domaine donné ('france' ou 'europe')."""
     target_model_key = "meteo_climat_pro_france" if domain_name == "france" else "meteo_climat_pro"
     out_dir = os.path.join(BASE_DIR, "output", target_model_key, "maps")
@@ -228,8 +240,8 @@ def process_domain_consensus(domain_name):
         hkv_dst = os.path.join(out_dir, "values", layer, f"{lead_str}.hkv.gz")
         webp_dst = os.path.join(out_dir, layer, f"{lead_str}.webp")
 
-        # ponytail: Skip ultra-rapide si les dalles existent déjà (évite 10+ min de recalcul inutile)
-        if os.path.exists(hkv_dst) and os.path.exists(webp_dst):
+        # ponytail: Skip ultra-rapide si les dalles existent déjà (sauf si force=True)
+        if not force and os.path.exists(hkv_dst) and os.path.exists(webp_dst):
             return 0
 
         grids = []
@@ -276,6 +288,8 @@ def process_domain_consensus(domain_name):
     alias_key = "consensus_france" if domain_name == "france" else "consensus"
     alias_dir = os.path.join(BASE_DIR, "output", alias_key)
     try:
+        if force and os.path.exists(alias_dir):
+            shutil.rmtree(alias_dir, ignore_errors=True)
         if not os.path.exists(alias_dir):
             # Copie minimale ou référence
             shutil.copytree(os.path.join(BASE_DIR, "output", target_model_key), alias_dir, dirs_exist_ok=True)
@@ -286,16 +300,17 @@ def process_domain_consensus(domain_name):
 
 
 def main():
+    force = "--force" in sys.argv
     print("=================================================================", flush=True)
-    print(" Démarrage du Consensus Météo-Climat Pro (France & Europe)", flush=True)
+    print(f" Démarrage du Consensus Météo-Climat Pro (France & Europe) {'[FORCE]' if force else ''}", flush=True)
     print("=================================================================", flush=True)
     t0 = datetime.datetime.now()
 
     # 1. France & Régions
-    process_domain_consensus("france")
+    process_domain_consensus("france", force=force)
 
     # 2. Europe Synoptique
-    process_domain_consensus("europe")
+    process_domain_consensus("europe", force=force)
 
     dt = (datetime.datetime.now() - t0).total_seconds()
     print(f"\n[Consensus] Terminé en {dt:.1f} secondes.", flush=True)
