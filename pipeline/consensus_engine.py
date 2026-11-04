@@ -11,8 +11,9 @@ Règles physiques de fusion :
 1. Température / Pression / Géopotentiel / Humidité : Moyenne pondérée selon l'échéance.
 2. Vent : Moyenne vectorielle sur U et V si disponibles, ou pondération continue.
 3. Rafales : Enveloppe haute (percentile 75-80) pour préserver les pointes d'orages/tempêtes.
-4. Pluie : Médiane non-nulle conditionnelle pour éviter le saupoudrage artificiel de crachin.
-5. MUCAPE : Enveloppe haute pour conserver le risque convectif réel.
+4. Précipitations cumulées : Monotonicité physique stricte (non-décroissance garantie).
+5. Précipitations horaires : Taux horaire exact (mm/h) dérivé de la pluie cumulée lissée.
+6. MUCAPE : Enveloppe haute pour conserver le risque convectif réel.
 """
 import os
 import sys
@@ -109,7 +110,6 @@ def read_hkv(path):
 def sync_fonds(domain_name, dst_maps):
     """Copie les fichiers de fond (fond.webp, mask_france.png, frontieres.svg)."""
     ensure_dir(dst_maps)
-    # Cherche un modèle source qui a déjà les fonds
     candidates = (
         ["arpege_france", "gfs_france", "icon_eu_france"]
         if domain_name == "france"
@@ -165,23 +165,25 @@ def blend_grids(grid_list, weight_list, layer_name):
             p_max = np.nanmax(stack, axis=0)
         return np.where(np.isfinite(w_avg), 0.5 * w_avg + 0.5 * p_max, p_max).astype(np.float32)
 
-    # 3. Précipitations (pluie_1h, pluie_cumul) : Médiane non-nulle conditionnelle
+    # 3. Précipitations cumulées (pluie_cumul, pluie_24h) : fusion continue sans seuil destructeur
+    if layer_name in ("pluie_cumul", "pluie_24h"):
+        return w_avg.astype(np.float32)
+
+    # 4. Précipitations instantanées (pluie_1h) : filtre de probabilité pondérée (>=20% de confiance)
     if "pluie" in layer_name:
         valid = np.isfinite(stack)
-        rain_mask = (stack > 0.2) & valid
-        rain_count = np.sum(rain_mask, axis=0)
-        valid_count = np.sum(valid, axis=0)
-        threshold = np.maximum(1, (0.3 * valid_count).astype(int))
-        valid_rain = (rain_count >= threshold) & (valid_count > 0)
-
+        w_mat = weights[:, None, None] * valid
+        w_sum = np.sum(w_mat, axis=0)
+        safe_w = np.where(w_sum > 0, w_mat / np.where(w_sum > 0, w_sum, 1.0), 0.0)
+        rain_prob = np.sum(np.where(stack > 0.1, safe_w, 0.0), axis=0)
         with np.errstate(all='ignore'):
-            median_rain = np.nanmedian(stack, axis=0)
-
-        combined = 0.5 * median_rain + 0.5 * w_avg
-        res = np.where(valid_rain, combined, 0.0)
+            p_max = np.nanmax(stack, axis=0)
+        rain_val = np.where(np.isfinite(w_avg), 0.7 * w_avg + 0.3 * p_max, w_avg)
+        valid_count = np.sum(valid, axis=0)
+        res = np.where(rain_prob >= 0.20, rain_val, 0.0)
         return np.where(valid_count > 0, res, np.nan).astype(np.float32)
 
-    # 4. Tous les autres scalaires (température, pression, point de rosée, humidex, nébulosité...)
+    # 5. Tous les autres scalaires (température, pression, point de rosée, humidex, nébulosité...)
     return w_avg.astype(np.float32)
 
 
@@ -200,6 +202,7 @@ def process_domain_consensus(domain_name, force=False):
     model_data = {}  # {model: { (lead, layer): hkv_path }}
     all_leads = set()
     all_layers = set()
+    all_source_mtimes = []
 
     for m in contributors:
         m_dir = os.path.join(BASE_DIR, "output", m, "maps", "values")
@@ -215,6 +218,7 @@ def process_domain_consensus(domain_name, force=False):
                 m_dict[(lead, layer_dir)] = hkv_path
                 all_leads.add(lead)
                 all_layers.add(layer_dir)
+                all_source_mtimes.append(os.path.getmtime(hkv_path))
         if m_dict:
             model_data[m] = m_dict
             print(f"[Consensus] Modèle disponible : {m} ({len(m_dict)} dalles HKV trouvées)", flush=True)
@@ -222,6 +226,8 @@ def process_domain_consensus(domain_name, force=False):
     if not model_data:
         print(f"[Consensus] Aucun modèle source trouvé pour {domain_name}. Ignoré.", flush=True)
         return False
+
+    latest_source_mtime = max(all_source_mtimes) if all_source_mtimes else 0.0
 
     sorted_leads = sorted(all_leads)
     sorted_layers = sorted(all_layers)
@@ -232,7 +238,121 @@ def process_domain_consensus(domain_name, force=False):
     dom_obj = domains.FRANCE if domain_name == "france" else domains.EUROPE
     full_w, full_h = dom_obj.width, dom_obj.height
 
+    # Indexation des pas par modèle et couche pour l'interpolation temporelle (comblement 3h -> 1h)
+    m_leads_by_layer = {}
+    for m, m_dict in model_data.items():
+        for (l, lay) in m_dict.keys():
+            m_leads_by_layer.setdefault((m, lay), []).append(l)
+    for k in m_leads_by_layer:
+        m_leads_by_layer[k].sort()
+
+    grid_cache = {}
+
+    def get_grid_normalized(path):
+        if path not in grid_cache:
+            g = read_hkv(path)
+            if g is not None and g.shape != (164, 220):
+                im = Image.fromarray(g.astype(np.float32)).resize((220, 164), resample=Image.BILINEAR)
+                g = np.array(im)
+            grid_cache[path] = g
+        return grid_cache[path]
+
+    def get_model_grid(m, lead, layer):
+        m_files = model_data.get(m, {})
+        if (lead, layer) in m_files:
+            return get_grid_normalized(m_files[(lead, layer)])
+
+        # Interpolation temporelle (ex: ARPEGE, GFS, IFS sur les heures 1h d'ICON)
+        leads_avail = m_leads_by_layer.get((m, layer), [])
+        if not leads_avail:
+            return None
+        p_leads = [l for l in leads_avail if l < lead]
+        n_leads = [l for l in leads_avail if l > lead]
+        if not p_leads or not n_leads:
+            return None
+        p = p_leads[-1]
+        n = n_leads[0]
+        if (n - p) > 6:
+            return None
+
+        gp = get_grid_normalized(m_files[(p, layer)])
+        gn = get_grid_normalized(m_files[(n, layer)])
+        if gp is None or gn is None:
+            return None
+
+        t = (lead - p) / float(n - p)
+        return (1.0 - t) * gp + t * gn
+
     generated_count = 0
+
+    # ── A. TRAITEMENT SÉQUENTIEL DES PRÉCIPITATIONS CUMULÉES & HORAIRES ──
+    # Garantit la monotonicité physique absolue (aucune baisse possible)
+    # et la cohérence exacte : pluie_1h = cumul(t) - cumul(t-1).
+    if "pluie_cumul" in sorted_layers:
+        print("[Consensus] Traitement séquentiel de pluie_cumul (garantie de monotonicité)...", flush=True)
+        prev_cumul = None
+        prev_lead = 0
+        for lead in sorted_leads:
+            lead_str = f"{lead:03d}"
+            hkv_cumul = os.path.join(out_dir, "values", "pluie_cumul", f"{lead_str}.hkv.gz")
+            webp_cumul = os.path.join(out_dir, "pluie_cumul", f"{lead_str}.webp")
+            hkv_1h = os.path.join(out_dir, "values", "pluie_1h", f"{lead_str}.hkv.gz")
+            webp_1h = os.path.join(out_dir, "pluie_1h", f"{lead_str}.webp")
+
+            need_recalc = (
+                force or
+                not os.path.exists(hkv_cumul) or
+                not os.path.exists(webp_cumul) or
+                os.path.getmtime(hkv_cumul) < latest_source_mtime
+            )
+
+            if not need_recalc:
+                prev_cumul = read_hkv(hkv_cumul)
+                prev_lead = lead
+                continue
+
+            grids = []
+            weights = []
+            for m in model_data.keys():
+                g = get_model_grid(m, lead, "pluie_cumul")
+                if g is not None:
+                    w = get_model_weight(m, lead)
+                    grids.append(g)
+                    weights.append(w)
+
+            if grids:
+                blended_cumul = blend_grids(grids, weights, "pluie_cumul")
+                if blended_cumul is not None:
+                    # Enforce strict physical monotonicity
+                    if prev_cumul is not None:
+                        blended_cumul = np.maximum(prev_cumul, blended_cumul)
+                    else:
+                        blended_cumul = np.maximum(0.0, blended_cumul)
+
+                    # 1. Sauvegarde pluie_cumul
+                    write_hkv(blended_cumul, hkv_cumul)
+                    im_full = Image.fromarray(blended_cumul.astype(np.float32)).resize((full_w, full_h), resample=Image.BILINEAR)
+                    grid_full = np.array(im_full, dtype=np.float32)
+                    save_webp(grid_full, "pluie_cumul", webp_cumul)
+                    generated_count += 1
+
+                    # 2. Dérivation stricte de pluie_1h (taux horaire exact en mm/h)
+                    dt = max(1, lead - prev_lead)
+                    if prev_cumul is not None:
+                        hourly_rain = np.maximum(0.0, (blended_cumul - prev_cumul) / float(dt))
+                    else:
+                        hourly_rain = np.zeros_like(blended_cumul)
+
+                    write_hkv(hourly_rain, hkv_1h)
+                    im_1h_full = Image.fromarray(hourly_rain.astype(np.float32)).resize((full_w, full_h), resample=Image.BILINEAR)
+                    save_webp(np.array(im_1h_full, dtype=np.float32), "pluie_1h", webp_1h)
+                    generated_count += 1
+
+                    prev_cumul = blended_cumul.copy()
+                    prev_lead = lead
+
+    # ── B. TRAITEMENT PARALLÈLE DE TOUTES LES AUTRES COUCHES ──
+    other_layers = [lay for lay in sorted_layers if lay not in ("pluie_cumul", "pluie_1h")]
 
     def process_step_layer(item):
         lead, layer = item
@@ -240,24 +360,20 @@ def process_domain_consensus(domain_name, force=False):
         hkv_dst = os.path.join(out_dir, "values", layer, f"{lead_str}.hkv.gz")
         webp_dst = os.path.join(out_dir, layer, f"{lead_str}.webp")
 
-        # ponytail: Skip ultra-rapide si les dalles existent déjà (sauf si force=True)
+        # Skip intelligent basé sur mtime
         if not force and os.path.exists(hkv_dst) and os.path.exists(webp_dst):
-            return 0
+            if os.path.getmtime(hkv_dst) >= latest_source_mtime:
+                return 0
 
         grids = []
         weights = []
 
-        for m, m_files in model_data.items():
-            if (lead, layer) in m_files:
-                g = read_hkv(m_files[(lead, layer)])
-                if g is not None:
-                    # Normaliser à (164, 220) si nécessaire
-                    if g.shape != (164, 220):
-                        im = Image.fromarray(g.astype(np.float32)).resize((220, 164), resample=Image.BILINEAR)
-                        g = np.array(im)
-                    w = get_model_weight(m, lead)
-                    grids.append(g)
-                    weights.append(w)
+        for m in model_data.keys():
+            g = get_model_grid(m, lead, layer)
+            if g is not None:
+                w = get_model_weight(m, lead)
+                grids.append(g)
+                weights.append(w)
 
         if not grids:
             return 0
@@ -277,10 +393,10 @@ def process_domain_consensus(domain_name, force=False):
 
         return 1
 
-    tasks = [(lead, layer) for lead in sorted_leads for layer in sorted_layers]
+    tasks = [(lead, layer) for lead in sorted_leads for layer in other_layers]
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
         results = list(pool.map(process_step_layer, tasks))
-        generated_count = sum(results)
+        generated_count += sum(results)
 
     print(f"✅ [Consensus] {target_model_key} : {generated_count} dalles WebP/HKV générées avec succès.", flush=True)
 
@@ -291,7 +407,6 @@ def process_domain_consensus(domain_name, force=False):
         if force and os.path.exists(alias_dir):
             shutil.rmtree(alias_dir, ignore_errors=True)
         if not os.path.exists(alias_dir):
-            # Copie minimale ou référence
             shutil.copytree(os.path.join(BASE_DIR, "output", target_model_key), alias_dir, dirs_exist_ok=True)
     except Exception:
         pass

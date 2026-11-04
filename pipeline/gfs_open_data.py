@@ -428,6 +428,40 @@ def get_wave_data(run_dt, lead):
     return _WAVE_CACHE.get(lead)
 
 
+def apply_gfs_precip(a, lead, state):
+    """Désaccumule la pluie GFS (reset APCP toutes les 6h dans NOMADS)
+    et maintient le cumul continu sans double-comptage.
+    """
+    if a is None:
+        return np.zeros((1, 1), dtype=np.float32), np.zeros((1, 1), dtype=np.float32)
+
+    if lead <= 120 and (lead % 6 == 0):
+        prev_3h = state.get("apcp_3h_prev")
+        if prev_3h is not None:
+            step_p = np.clip(a - prev_3h, 0.0, None)
+        else:
+            step_p = np.clip(a * 0.5, 0.0, None)
+        base = state.get("cum_base_6h")
+        cum_val = (base + a) if base is not None else a.copy()
+        state["cum_base_6h"] = cum_val.copy()
+        state["apcp_3h_prev"] = None
+    elif lead <= 120 and (lead % 6 == 3):
+        step_p = a.copy()
+        state["apcp_3h_prev"] = a.copy()
+        base = state.get("cum_base_6h")
+        if base is None:
+            base = np.zeros_like(a)
+            state["cum_base_6h"] = base
+        cum_val = base + a
+    else:
+        step_p = a.copy()
+        cum_val = (state["cum_precip"] + a) if state.get("cum_precip") is not None else a.copy()
+        state["cum_base_6h"] = cum_val.copy()
+
+    state["cum_precip"] = cum_val.copy()
+    return step_p, cum_val
+
+
 def render_lead(cached, lead, run_dt, domain, out_dir, steps, state):
     """Rend toutes les couches d'une échéance pour un domaine."""
     step = {"lead_hour": lead,
@@ -567,19 +601,18 @@ def render_lead(cached, lead, run_dt, domain, out_dir, steps, state):
             state["counts"]["geopotentiel_500_meteociel"] = state["counts"].get("geopotentiel_500_meteociel", 0) + 1
 
     if apcp is not None:
-        a = regrid(apcp)  # mm sur 3 h
+        a = regrid(apcp)
         if a is not None:
-            save("pluie_1h", a)
-            if state.get("cum_precip") is None:
-                state["cum_precip"] = a.copy()
-            else:
-                state["cum_precip"] = state["cum_precip"] + a
-            save("pluie_cumul", state["cum_precip"])
+            step_p, cum_val = apply_gfs_precip(a, lead, state)
+            save("pluie_1h", step_p)
+            save("pluie_cumul", cum_val)
     elif lead == 0:
         zero_p = np.zeros((domain.height, domain.width), dtype=np.float32)
         save("pluie_1h", zero_p)
         save("pluie_cumul", zero_p)
         state["cum_precip"] = zero_p.copy()
+        state["cum_base_6h"] = zero_p.copy()
+        state["apcp_3h_prev"] = None
 
     if snod is not None:
         save("neige_au_sol", regrid(snod, lambda v: v * 100.0))
@@ -637,7 +670,7 @@ def render_lead(cached, lead, run_dt, domain, out_dir, steps, state):
     return step
 
 
-def warmup_from_cached(cached, domain, state):
+def warmup_from_cached(cached, domain, state, lead):
     """Applique une échéance antérieure (GUST/APCP) à l'état cumulatif."""
     gust = layer_field("GUST", cached)
     apcp = layer_field("APCP", cached)
@@ -651,8 +684,7 @@ def warmup_from_cached(cached, domain, state):
         val, lat, lon = apcp
         a = domain.regrid(val, lat, lon)
         if a is not None:
-            state["cum_precip"] = (a.copy() if state["cum_precip"] is None
-                                   else state["cum_precip"] + a)
+            apply_gfs_precip(a, lead, state)
     return state
 
 
@@ -666,7 +698,7 @@ def warmup_cumulative(run_dt, prior_leads, domain):
         except Exception as e:
             log("  échauffement H+%03d ignoré (%s)" % (lh, e))
             continue
-        warmup_from_cached(cached, domain, state)
+        warmup_from_cached(cached, domain, state, lh)
     if state["max_gust"] is not None or state["cum_precip"] is not None:
         log("  échauffement cumulatif : %d échéances antérieures traitées"
             % len(prior_leads))

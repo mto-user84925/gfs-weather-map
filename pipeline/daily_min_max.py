@@ -223,6 +223,8 @@ def process_model_max_24h(model_key, input_layer, output_layer):
 
 def main():
     models = [
+        "meteo_climat_pro_france",
+        "meteo_climat_pro",
         "arpege_france",
         "icon_eu_france",
         "gfs_france",

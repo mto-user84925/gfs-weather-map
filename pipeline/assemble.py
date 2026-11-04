@@ -52,7 +52,8 @@ def assemble_model(model_key, domain, meta):
         run_dt = _FAMILY_RUN_CACHE[family]
     else:
         existing_index = os.path.join(out_dir, "index.json")
-        if os.path.exists(existing_index):
+        # Ne jamais réutiliser l'ancien run_time de l'index pour MCP (doit suivre le dernier run des sources)
+        if family != "mcp" and os.path.exists(existing_index):
             try:
                 with open(existing_index, "r", encoding="utf-8") as f:
                     old_meta = json.load(f)
@@ -135,19 +136,19 @@ def assemble_model(model_key, domain, meta):
 def main():
     print("[assemble] Début de l'assemblage multi-modèles...", flush=True)
 
-    # Calcul des températures minimales (Tn) et maximales (Tx) 24h pour les modèles France
-    try:
-        import daily_min_max
-        daily_min_max.main()
-    except Exception as e:
-        print("[assemble] Note : daily_min_max non exécuté : %s" % e, flush=True)
-
     # ── MODÈLE MÉTÉO-CLIMAT PRO (CONSENSUS MULTI-MODÈLES) ──────────────
     try:
         import consensus_engine
         consensus_engine.main()
     except Exception as e:
         print("[assemble] Note : consensus_engine non exécuté : %s" % e, flush=True)
+
+    # Calcul des températures minimales (Tn), maximales (Tx) et cumuls 24h (inclut MCP)
+    try:
+        import daily_min_max
+        daily_min_max.main()
+    except Exception as e:
+        print("[assemble] Note : daily_min_max non exécuté : %s" % e, flush=True)
 
     assemble_model("meteo_climat_pro_france", FRANCE, {
         "model_name": "Modèle Météo-Climat Pro France & Régions",
